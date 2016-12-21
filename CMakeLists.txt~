@@ -189,5 +189,5 @@ include_directories(
 # catkin_add_nosetests(test)
 
 add_executable( Interface src/Interface.cpp)
-target_link_libraries(Controller ${catkin_LIBRARIES})
+target_link_libraries(Interface ${catkin_LIBRARIES})
 add_dependencies( Interface std_msgs sensor_msgs geometry_msgs quadrotor_control_generate_messages_cpp ${catkin_EXPORTED_TARGETS})

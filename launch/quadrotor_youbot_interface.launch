@@ -1,0 +1,5 @@
+<launch>
+	<rosparam command="load" file="$(find quadrotor_youbot_interface)/params/params.yaml" />
+
+	<node name="Interface" pkg="quadrotor_youbot_interface" type="Interface" output="screen"/>
+</launch>

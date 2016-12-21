@@ -1,0 +1,5 @@
+<launch>
+	<rosparam command="load" file="$(find quadrotor_control)/params/params.yaml" />
+
+	<node name="Controller" pkg="quadrotor_control" type="Controller" output="screen"/>
+</launch>

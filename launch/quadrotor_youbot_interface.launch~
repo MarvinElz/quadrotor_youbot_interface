@@ -1,0 +1,5 @@
+<launch>
+	<rosparam command="load" file="$(find quadrotor_dynamics)/params/params.yaml" />
+
+	<node name="Dynamics" pkg="quadrotor_dynamics" type="Dynamics" output="screen"/>
+</launch>
