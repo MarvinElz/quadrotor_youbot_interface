@@ -2,9 +2,14 @@
 #include "brics_actuator/JointPositions.h"
 #include "geometry_msgs/Twist.h"
 #include "quadrotor_control/kinematics.h"
+#include "youbot_arm_model/youbot_jacobi.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+
+#include <Eigen/Dense>
+#include <kdl/jntarray.hpp>
+#include <kdl/frames.hpp>
 
 double scale = 1.0;
 double a1, a2, a3;
@@ -19,6 +24,13 @@ std::string to_string(int i){
     snprintf(number_buffer, sizeof(number_buffer), "%d", i);
     std::string number( number_buffer );
     return number;
+}
+
+void callback_joint_angel( const brics_actuator::JointPositions::Ptr& msg){
+	MatrixXd J(6,5);
+  KDL::JntArray Joints;
+	VectorXd Vels(6);
+	//getJacobi( &J, &Joints.data );
 }
 
 void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
@@ -119,9 +131,13 @@ int main(int argc, char **argv)
 	// for testing
 	ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
 	//ros::Subscriber sub_kin = nh.subscribe("/kin_model", 10, callback_kin_model);
+	
+	// Subscriber für Gelenkwinkel-änderungen
+	//ros::Subscriber sub_joint = nh.subscribe("", callback_joint_angel);
+  
 
-    pub_joint = nh.advertise<brics_actuator::JointPositions>("/arm_1/arm_controller/position_command", 100);
-    pub_base  = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 100);
+	pub_joint = nh.advertise<brics_actuator::JointPositions>("/arm_1/arm_controller/position_command", 100);
+  pub_base  = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 100);
 		
 	ros::spin();
 	return 0;

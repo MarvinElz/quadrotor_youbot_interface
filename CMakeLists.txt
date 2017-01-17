@@ -4,13 +4,17 @@ project(quadrotor_youbot_interface)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
+find_package(catkin REQUIRED COMPONENTS 
   quadrotor_dynamics
   roscpp
   sensor_msgs
   std_msgs
-  roslaunch
+  roslaunch    
+  youbot_arm_model				# Jacobi Matrix
 )
+find_package( cmake_modules REQUIRED )
+find_package( Eigen REQUIRED	)
+# find_package( Orocos-KDL REQUIRED )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -117,6 +121,8 @@ catkin_package(
 # include_directories(include)
 include_directories(
   ${catkin_INCLUDE_DIRS}
+  ${youbot_arm_model}
+  ${Eigen_INCLUDE_DIRS}	#Eigen
 )
 
 ## Declare a C++ library
@@ -190,5 +196,5 @@ include_directories(
 # catkin_add_nosetests(test)
 
 add_executable( Interface src/Interface.cpp)
-target_link_libraries(Interface ${catkin_LIBRARIES})
+target_link_libraries(Interface ${catkin_LIBRARIES} ) #Eigen ${Eigen_LIBRARIES}
 add_dependencies( Interface std_msgs sensor_msgs geometry_msgs quadrotor_control_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
