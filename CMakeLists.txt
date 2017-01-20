@@ -8,13 +8,15 @@ find_package(catkin REQUIRED COMPONENTS
   quadrotor_dynamics
   roscpp
   sensor_msgs
+  nav_msgs
   std_msgs
+  quadrotor_control
   roslaunch    
   youbot_arm_model				# Jacobi Matrix
 )
 find_package( cmake_modules REQUIRED )
 find_package( Eigen REQUIRED	)
-# find_package( Orocos-KDL REQUIRED )
+find_package( orocos_kdl )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -196,5 +198,5 @@ include_directories(
 # catkin_add_nosetests(test)
 
 add_executable( Interface src/Interface.cpp)
-target_link_libraries(Interface ${catkin_LIBRARIES} ) #Eigen ${Eigen_LIBRARIES}
+target_link_libraries(Interface ${catkin_LIBRARIES} ${orocos_kdl_LIBRARIES}) #Eigen ${Eigen_LIBRARIES}
 add_dependencies( Interface std_msgs sensor_msgs geometry_msgs quadrotor_control_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
