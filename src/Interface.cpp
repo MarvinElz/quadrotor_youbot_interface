@@ -25,6 +25,8 @@ double a1, a2, a3;
 double d1, d5;
 double k_Arm, k_Ell;
 
+const double my_joint_offsets[5] = {2.9496, 1.13446, -2.635447, 1.98896, 2.87979};
+
 // Überprüft, ob von beiden Quellen Informationen vorliegen
 struct synchronizer{
 	bool IMU_ready;
@@ -146,28 +148,35 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 	msg->pose.position.z *= scale;
 
 	// inverse Kinematik
+	// Aufteilung in X- und Y-Bewegung
+
 	double g[5];	// Gelenkwinkel
-	double z = msg->pose.position.z;
+	double z = - msg->pose.position.z;
 	ROS_INFO( "Z: %f", z );
+
+	double alpha = msg->pose.orientation.z;	// Rotation um Z-Achse des youBots
+	ROS_INFO("alpha: %f", alpha);
+
+	double gamma = - msg->pose.orientation.y;	// Rotation um Y-Achse
+	ROS_INFO("gamma: %f", gamma);
+
 	//Hilfsgrößen
-	double x4 = k_Arm*( - d5*cos( msg->pose.orientation.x ) ) - a1;
+	double x4 = k_Arm*( - d5*cos( gamma ) ) - a1;
 	//ROS_INFO( "x4: %f", x4 );
-	double y4 = z - d1 - d5 * sin( msg->pose.orientation.x );
+	double y4 = z - d1 - d5 * sin( gamma );
 	//ROS_INFO( "y4: %f", y4 );
 	double a = acos( (a2*a2 + a3*a3 - x4*x4 - y4*y4)/(2*a2*a3) );
 	//ROS_INFO( "a: %f", a );
 	double b = acos( (x4*x4 + y4*y4 + a2*a2 - a3*a3)/(2*a2*sqrt(x4*x4+y4*y4)) );
 	//ROS_INFO( "b: %f", b );
-	double alpha = atan2( sin(msg->pose.position.x), -cos(msg->pose.position.x)*sin(msg->pose.position.y) );
-	double gamma = asin( cos(msg->pose.position.y)*cos(msg->pose.position.x) );
-
-	g[0] = gamma + M_PI*(k_Arm-1)/(2);
-	g[1] = atan2(y4, x4) + k_Arm*k_Ell * b - M_PI/2;
-	g[2] = k_Arm * k_Ell * (a-M_PI);
-	g[3] = k_Arm * ( msg->pose.orientation.x ) -g[1] - g[2];
-	g[4] = msg->pose.orientation.z - gamma + (k_Arm -1)/(2)*M_PI;
 	
-	ROS_INFO( "Gelenkwinkel: %f, %f, %f, %f, %f", g[0],g[1],g[2],g[3],g[4] );	
+	g[0] = alpha + M_PI*(k_Arm-1)/(2)				+ my_joint_offsets[0];
+	g[1] = atan2(y4, x4) + k_Arm*k_Ell * b - M_PI/2 + my_joint_offsets[1];
+	g[2] = - k_Arm * k_Ell * (a-M_PI)					+ my_joint_offsets[2];
+	g[3] = k_Arm * ( gamma - M_PI/2 ) -g[1] - g[2]	+ my_joint_offsets[3];
+	g[4] = 0 + my_joint_offsets[4]; //msg->pose.orientation.z - alpha + (k_Arm -1)/(2)*M_PI;
+	
+	
 	//ROS_INFO( "Winkelsumme: %f", g[0]+g[1]+g[2]+g[3] );	
 
 	brics_actuator::JointPositions msg_joints;
@@ -189,9 +198,13 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 		jv.joint_uri = joint_names[i];
 		jv.unit = "rad";
 		jv.value = g[i];
+		if( g[i] != g[i] ) // NaN
+			return;
 		msg_joints.positions.push_back(jv);
 	}
         
+	ROS_INFO( "Gelenkwinkel: %f, %f, %f, %f, %f", g[0],g[1],g[2],g[3],g[4] );	
+
 	brics_actuator::Poison poison;
 	poison.originator   = "";   // what?
 	poison.description  = "";   // what?
