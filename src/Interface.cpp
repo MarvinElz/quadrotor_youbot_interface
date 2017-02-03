@@ -20,15 +20,19 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/frames.hpp>
 
-double scaleV = 1.0;
+// Skalierung der Translationsgeschwindigkeit & Raum
+double scaleV = 0.15;
+// Skalierung der Winkelgeschwindigkeit
 double scaleR = 0.2;
+
+// Roboterarm-Parameter
 double a1, a2, a3;
 double d1, d5;
 double k_Arm, k_Ell;
 
-const double my_joint_offsets[5] = {2.9496, 1.13446, -2.635447, 1.98896, 2.87979};
+// const double my_joint_offsets[5] = {2.9496, 1.13446, -2.635447, 1.98896, 2.87979};
 
-// Überprüft, ob von beiden Quellen Informationen vorliegen
+// Überprüft, ob von allen Quellen Informationen vorliegen
 struct synchronizer{
 	bool IMU_ready;
 	bool joint_ready;
@@ -36,9 +40,14 @@ struct synchronizer{
 }typedef synchronizer;
 synchronizer synch = {true, false, false};
 
+// Publisher für die Gelenkwinkel
 ros::Publisher pub_joint;
+// Publisher für die Geschwindigkeit der Plattform
 ros::Publisher pub_base;
+
+// Publisher für die gemessenen Kinematikdaten -> Regelung
 ros::Publisher pub_kin_measure;
+
 // Message in der die gemessenen Kin-Größen gespeichert werden
 quadrotor_control::kinematics kin_measure_msg;
 
@@ -47,6 +56,7 @@ double VX = 0;
 double VY = 0;
 double VPhi = 0;
 double VTheta = 0;
+// ----------------------------------------------------------------------
 
 /*
 	Wird aufgerufen, wenn Odometriedaten (des Youbots) aktualisiert werden
@@ -77,20 +87,22 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	Errechnet: Vx, Vy, Vz; PSI
 */
 void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
-	MatrixXd Jacobi(6,5);
+	MatrixXd Jacobi(6,5);	
 	
-	
-	// ist hier eine Überprüfung msg->name notwendig, oder stimmt die Reihenfolge?
+	// Gelenkgeschwindigkeiten aus JointState übertragen
 	KDL::JntArray JointVels(5);
 	for(int i = 0; i <= 4; i++)		
 		JointVels(i) = msg->velocity[i];
 
+	// Gelenkpositionen aus JointState übertragen
 	KDL::JntArray Joints(5);
 	for(int i = 0; i <= 4; i++)		
 		Joints(i) = msg->position[i] - joint_offsets[i];
 
+	// Jacobi-Matrix aus Gelenkpositionen berechnen
 	getJacobi( Jacobi, Joints );
 
+	// TCP-Geschwindigkeiten berechnen (Transl. & Rotat.)
 	VectorXd Vels(6);
 	Vels = Jacobi * JointVels.data; // [0..2] v, [3..5] w
 	
@@ -100,7 +112,6 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	Vels(2) /= scaleV;
 
 	// PSI berechnen
-	// RICHTIG???
 	double psi = Joints(0);	
 	
 	// berechnete Werte in kin_measure_msg eintragen	
@@ -118,7 +129,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
 	kin_measure_msg.vel.linear.z = - Vels(2);
 	
-	//	Berechnung von w auch möglich -> warum nicht?
+	// Winkelgeschwindigkeiten
 	kin_measure_msg.vel.angular.x = VPhi;
 	kin_measure_msg.vel.angular.y = - Vels(4) /scaleR;
 	kin_measure_msg.vel.angular.z = - Vels(5);
@@ -159,6 +170,8 @@ void callback_imu( const sensor_msgs::Imu::Ptr& msg){
 }
 
 void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
+	// VX und VY zwischenspeichern, falls später benötigt:
+	// wenn nur eine Achse getestet wird, muss die andere auch Werte liefern
 	VX = msg->vel.linear.x;
 	VY = msg->vel.linear.y;
 	VPhi = msg->vel.angular.x;
@@ -179,18 +192,19 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 	// Aufteilung in X- und Y-Bewegung
 
 	double g[5];	// Gelenkwinkel
-	double z = - msg->pose.position.z;		// Achtung: Negation!
-	//ROS_INFO( "Z: %f", z );
+	double z = - msg->pose.position.z;		// Negation!
   if( z < 0.5 ){
 		ROS_INFO("Unsichere Arbeitshoehe -> Bitte nach oben bewegen");
 		return;
 	}
 
-	double psi = msg->pose.orientation.z;	// Rotation um Z-Achse des youBots
-	//ROS_INFO("psi: %f", psi);
+	// Rotation um Z-Achse
+	double psi = msg->pose.orientation.z;	
 
-	double phi = M_PI/2 - msg->pose.orientation.y;	// Rotation um Y-Achse des UAV
-	//ROS_INFO("phi: %f", phi);
+	// Rotation um Y-Achse
+	double phi = M_PI/2 - msg->pose.orientation.y;	// NEGATION!
+
+	// -----------   Inverse Kinematik   -------------------------
 
 	//Hilfsgrößen
 	double x4 = k_Arm*( - d5*cos( phi ) ) - a1;
@@ -212,7 +226,7 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 	for( int i = 0; i < 5; i++ )
 		g[i] += joint_offsets[i];	
 
-	//ROS_INFO( "Winkelsumme: %f", g[0]+g[1]+g[2]+g[3] );	
+	// -----------   Inverse Kinematik   ---------   ENDE  --------
 
 	brics_actuator::JointPositions msg_joints;
 	geometry_msgs::Twist msg_base;
@@ -236,9 +250,7 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 		if( g[i] != g[i] ) // NaN
 			return;
 		msg_joints.positions.push_back(jv);
-	}
-        
-	//ROS_INFO( "Gelenkwinkel: %f, %f, %f, %f, %f", g[0],g[1],g[2],g[3],g[4] );	
+	}        
 
 	brics_actuator::Poison poison;
 	poison.originator   = "";   // what?
@@ -273,14 +285,12 @@ int main(int argc, char **argv)
 
 	ROS_INFO("Start Interface");
 
-   	getConstants(nh);
+	getConstants(nh);
 	
 	// for testing
 	ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
 	//ros::Subscriber sub_kin = nh.subscribe("/kin_model", 10, callback_kin_model);
 
-	
-	
 	// Subscriber für Gelenkwinkel-änderungen
 	ros::Subscriber sub_joint = nh.subscribe("/joint_states", 10, callback_JointState);
 	// Subscriber für IMU
