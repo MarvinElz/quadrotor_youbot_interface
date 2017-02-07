@@ -199,4 +199,4 @@ include_directories(
 
 add_executable( Interface src/Interface.cpp)
 target_link_libraries(Interface ${catkin_LIBRARIES} ${orocos_kdl_LIBRARIES}) #Eigen ${Eigen_LIBRARIES}
-add_dependencies( Interface std_msgs sensor_msgs geometry_msgs quadrotor_control_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
+add_dependencies( Interface std_msgs sensor_msgs geometry_msgs youbot_arm_model quadrotor_control_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
