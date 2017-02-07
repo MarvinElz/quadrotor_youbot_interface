@@ -38,7 +38,7 @@ struct synchronizer{
 	bool joint_ready;
 	bool base_ready;
 }typedef synchronizer;
-synchronizer synch = {true, false, false};
+synchronizer synch = {false, false, false};
 
 // Publisher für die Gelenkwinkel
 ros::Publisher pub_joint;
@@ -77,7 +77,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	if( synch.IMU_ready && synch.joint_ready ){
 		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
-		synch.IMU_ready 	= true;
+		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
 	}	
 }
@@ -146,7 +146,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	if( synch.IMU_ready && synch.base_ready ){
 		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
-		synch.IMU_ready 	= true;
+		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
 	}	
 }
@@ -164,7 +164,7 @@ void callback_imu( const sensor_msgs::Imu::Ptr& msg){
 	if( synch.joint_ready && synch.base_ready ){
 		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
-		synch.IMU_ready 	= true;
+		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
 	}	
 }
@@ -234,7 +234,7 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 	msg_base.linear.x = msg->vel.linear.x;
 	msg_base.linear.y = msg->vel.linear.y;
 	msg_base.linear.z = 0.0f;
-
+	ROS_INFO( "BaseV: %f, %f", msg_base.linear.x, msg_base.linear.y );
 	msg_base.angular.x = 0.0f;
 	msg_base.angular.y = 0.0f;
 	msg_base.angular.z = 0.0f;
