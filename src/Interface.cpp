@@ -302,7 +302,7 @@ int main(int argc, char **argv)
   
 	//pub_kin_measure = nh.advertise<quadrotor_control::kinematics>("/kin_measure", 10);
 	pub_joint = nh.advertise<brics_actuator::JointPositions>("/arm_1/arm_controller/position_command", 100);
-  pub_base  = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 100);
+	pub_base  = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 100);
 		
 	ros::spin();
 	return 0;
