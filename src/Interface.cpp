@@ -220,7 +220,7 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 	g[1] = atan2(y4, x4) + k_Arm*k_Ell * b - M_PI/2;
 	g[2] = k_Arm * k_Ell * (a-M_PI);
 	g[3] = k_Arm * ( phi - M_PI/2 ) - g[1] - g[2];
-	g[4] = 0; //msg->pose.orientation.z - psi + (k_Arm -1)/(2)*M_PI;
+	g[4] = 0;
 	
 	// joint_offsets addieren
 	for( int i = 0; i < 5; i++ )
@@ -231,14 +231,15 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 	brics_actuator::JointPositions msg_joints;
 	geometry_msgs::Twist msg_base;
 
-	msg_base.linear.x = msg->vel.linear.x;
-	msg_base.linear.y = msg->vel.linear.y;
+	msg_base.linear.x =   msg->vel.linear.x;
+	msg_base.linear.y = - msg->vel.linear.y;	// Transformation in Plattform-Koord
 	msg_base.linear.z = 0.0f;
+
 	ROS_INFO( "BaseV: %f, %f", msg_base.linear.x, msg_base.linear.y );
+
 	msg_base.angular.x = 0.0f;
 	msg_base.angular.y = 0.0f;
-	msg_base.angular.z = 0.0f;
-	pub_base.publish(msg_base);    
+	msg_base.angular.z = 0.0f;   
 
 	ros::Time time_now = ros::Time::now();
 	for( int i = 0; i <= 4; i++ ){
@@ -256,8 +257,9 @@ void callback_kin_model( const quadrotor_control::kinematics::Ptr& msg ){
 	poison.originator   = "";   // what?
 	poison.description  = "";   // what?
 	poison.qos          = 1.0f; // right?
-
 	msg_joints.poisonStamp = poison;
+
+	pub_base.publish(msg_base); 
 	pub_joint.publish( msg_joints );
 }
 
