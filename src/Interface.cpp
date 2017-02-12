@@ -63,7 +63,29 @@ quadrotor_control::kinematics kin_model_save_msg;
 
 bool safe = false;
 
-// Hier Berechnung w B -> N
+// Hier Berechnung N <-> uBot_Base
+tf::Matrix3x3 getTransformationNU(){
+	tf::Matrix3x3 transformM(
+		1.0, 0.0, 0.0,
+		0.0,-1.0, 0.0,
+		0.0, 0.0,-1.0);
+	return transformM;
+}
+
+// Hier Berechnung TCP -> N
+tf::Matrix3x3 getTransformationTCPtoN( double phi, double theta, double psi ){
+	tf::Matrix3x3 transformM;
+	// Transformationsmatrix von B -> N
+	transformM.setEulerYPR( psi, theta, phi );
+	transformM *= getTransformationNBase();
+	return transformM;
+}
+
+// Hier Berechnung N -> TCP
+tf::Matrix3x3 getTransformationNtoTCP( double phi, double theta, double psi ){
+	tf::Matrix3x3 transformM = getTransformationTCPtoN(phi, theta, psi);
+	return transformM.transpose();
+}
 
 
 // ----------------------------------------------------------------------
@@ -84,9 +106,11 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 		geometry_msgs/PoseWithCovariance pose
 		geometry_msgs/TwistWithCovariance twist
 	*/
+	tf::Vector3 Uv_NB = msg->twist.twist.linear / scaleV;
+	tf::Vector3 Nv_NB = getTransformationNU() * Uv_NB;
 
-	kin_measure_msg.vel.linear.x = msg->twist.twist.linear.x / scaleV;
-	kin_measure_msg.vel.linear.y = msg->twist.twist.linear.y / scaleV;
+	kin_measure_msg.vel.linear.x = Nv_NB.x
+	kin_measure_msg.vel.linear.y = Nv_NB.y;
 
 	synch.base_ready = true;
 	if( synch.IMU_ready && synch.joint_ready ){
@@ -172,7 +196,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 }
 
 /*
-	Wird aufgerufen, wenn IMU neue Daten liefert
+	Wird aufgerufen, wenn IMU neue Daten liefert, Daten wofür???
 */
 void callback_imu( const sensor_msgs::Imu::Ptr& msg){
 
@@ -210,6 +234,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	std::memcpy( (void *)&kin_model_save_msg, (const void *)&msg, sizeof kin_model_save_msg );
 
 	// Scale: Vx, Vy, Vz
+	//tf::Vector3 
 	msg.vel.linear.x *= scaleV;
 	msg.vel.linear.y *= scaleV;
 	msg.vel.linear.z *= scaleV;
