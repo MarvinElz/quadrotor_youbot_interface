@@ -65,6 +65,7 @@ bool safe = false;
 
 // Hier Berechnung w B -> N
 
+
 // ----------------------------------------------------------------------
 
 /*
@@ -90,7 +91,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	synch.base_ready = true;
 	if( synch.IMU_ready && synch.joint_ready ){
 		pub_kin_measure.publish( kin_model_save_msg );
-		synch.joint_ready = false;
+		synch.joint_ready 	= false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
 	}	
@@ -98,7 +99,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 
 /*
 	Wird aufgerufen, wenn Winkelinformationen (des Youbots) aktualisiert werden
-	Errechnet: Vz, PSI (Phi', Theta')
+	Errechnet: Vz, PSI, PHI, THETA, PHI'
 */
 void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
@@ -133,9 +134,16 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
 	// PSI berechnen
 	double psi = Joints(0);	
-	
+		
 	// berechnete Werte in kin_measure_msg eintragen	
 	kin_measure_msg.pose.orientation.z = psi;
+
+
+	// Neigungswinkel des obersten Gliedes
+	double phi = M_PI - ( Joints(1)+Joints(2)+Joints(3) );
+	kin_measure_msg.pose.orientation.y = - phi / scaleR;
+
+
 
 	kin_measure_msg.vel.linear.z = - Vels(2);
 	
@@ -148,12 +156,11 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	// HIER ROTATION DER WINKELGESCHW. VON B -> N
 
 	ROS_INFO( "Measure:" );
-	ROS_INFO("PSI: % 06.4f, Vz: % 06.4f, VPhi: % 06.4f, VTheta: % 06.4f, VPsi: % 06.4f", 
+	ROS_INFO("PSI: % 06.4f, Vz: % 06.4f, THETA: % 06.4f", 
 		psi, 
 		kin_measure_msg.vel.linear.z, 
-		kin_measure_msg.vel.angular.x, 
-		kin_measure_msg.vel.angular.y,
-		kin_measure_msg.vel.angular.z);
+		kin_measure_msg.pose.orientation.y
+		);
 
 	synch.joint_ready = true;
 	if( synch.IMU_ready && synch.base_ready ){
