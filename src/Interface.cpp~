@@ -23,7 +23,6 @@
 
 
 // für Umrechnung B -> N
-#include <tf/transform_datatypes.h>
 #include <tf/LinearMath/Matrix3x3.h>
 #include <tf/LinearMath/Vector3.h>
 
@@ -83,18 +82,12 @@ tf::Vector3 getAnglesOfTFMatrix( const tf::Matrix3x3 &m ){
 	return angles;
 }
 
-// Hier Berechnung C -> N
-tf::Matrix3x3 getTFfromCtoN( double phi, double theta, double psi ){
+
+//
+tf::Matrix3x3 getRotMatrix( double phi, double theta, double psi ){
 	tf::Matrix3x3 transformM;
 	transformM.setEulerYPR( psi, theta, phi );
 	return transformM;
-}
-
-
-// Hier Berechnung N -> C
-tf::Matrix3x3 getTFfromNtoTCP( double phi, double theta, double psi ){
-	tf::Matrix3x3 transformM = getTFfromCtoN(phi, theta, psi);
-	return transformM.transpose();
 }
 
 
@@ -116,18 +109,18 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 		geometry_msgs/PoseWithCovariance pose
 		geometry_msgs/TwistWithCovariance twist
 	*/
-	tf::Vector3 Uv_NB;	// Vector von N nach B im U-System
-	// gemessene Geschwindigkeiten im U-System
-	tf::vector3MsgToTF( msg->twist.twist.linear , Uv_NB );
-	Uv_NB *= (1/scaleV);
-	tf::Vector3 Nv_NB = getTF_NU() * Uv_NB;
 
-	kin_measure_msg.vel.linear.x = Nv_NB.x();
-	kin_measure_msg.vel.linear.y = Nv_NB.y();
+	// Transformation von U -> N + Skalierung
+	kin_measure_msg.vel.linear.x = 				msg->twist.twist.linear.x / scaleV;
+	kin_measure_msg.vel.linear.y = (-1) * msg->twist.twist.linear.x / scaleV;
+	
+	ROS_INFO("Measure: VX: % 06.4f, VY: % 06.4f", 
+		kin_measure_msg.vel.linear.x, 
+		kin_measure_msg.vel.linear.y);
 
 	synch.base_ready = true;
 	if( synch.IMU_ready && synch.joint_ready ){
-		pub_kin_measure.publish( kin_model_save_msg );
+		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -172,27 +165,32 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	// PSI berechnen
 	double psi = Joints(0);	
 		
-	// berechnete Werte in kin_measure_msg eintragen	
-	kin_measure_msg.pose.orientation.z = psi;
-	// ACHTUNG BEI Y-Steuerung, weil M_PI/2
-
 	// Neigungswinkel des obersten Gliedes
 	double phi = ( Joints(1)+Joints(2)+Joints(3) );
-	kin_measure_msg.pose.orientation.y = - phi / scaleR;
 
-	kin_measure_msg.vel.linear.z = - Vels(2);
-	
+	tf::Vector3 angles = getAnglesOfTFMatrix( getTF_NU()*getRotMatrix(0, phi ,psi) );
+
+	// berechnete Werte in kin_measure_msg eintragen	
+	kin_measure_msg.pose.orientation.z = angles.z();
+	// ACHTUNG BEI Y-Steuerung, weil M_PI/2
+
+	// Achtung bei Y-Steuerung, weil ...orientation.x = ...
+	kin_measure_msg.pose.orientation.y = angles.y() / scaleR;
+	kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
+
+	// Transformation von U -> N
+	kin_measure_msg.vel.linear.z = (-1) * Vels(2);
+
+/*	
 	// Winkelgeschwindigkeiten (vielleicht nicht möglich aufgrund Rauschen)
 	// Drehung um X-Achse nicht möglich -> Modelldaten nehmen
 	kin_measure_msg.vel.angular.x = kin_model_save_msg.vel.angular.x;
 	kin_measure_msg.vel.angular.y = - Vels(4) /scaleR;
 	kin_measure_msg.vel.angular.z = - Vels(5);
+*/
 
-	// HIER ROTATION DER WINKELGESCHW. VON B -> N
-
-	ROS_INFO( "Measure:" );
-	ROS_INFO("PSI: % 06.4f, Vz: % 06.4f, THETA: % 06.4f", 
-		psi, 
+	ROS_INFO( "Measure: PSI: % 06.4f, Vz: % 06.4f, THETA: % 06.4f", 
+		kin_measure_msg.pose.orientation.z, 
 		kin_measure_msg.vel.linear.z, 
 		kin_measure_msg.pose.orientation.y
 		);
@@ -216,10 +214,11 @@ void callback_imu( const sensor_msgs::Imu::Ptr& msg){
 		return;
 	}
 	
+/*
 	kin_measure_msg.vel.angular.x = msg->angular_velocity.x / scaleR;
 	kin_measure_msg.vel.angular.y = msg->angular_velocity.y / scaleR;
 	kin_measure_msg.vel.angular.z = msg->angular_velocity.z;
-	
+*/
 	// HIER ROTATION DER WINKELGESCHW. VON B -> N
 
 	synch.IMU_ready = true;
@@ -258,10 +257,10 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	msg.pose.orientation.y *= scaleR;
 
 	// Nur Bewegung in X-Richtung
-	//tf::Vector3 angles = getAnglesOfTFMatrix( getTF_NU()*getTFfromCtoN(0,msg.pose.orientation.y,msg.pose.orientation.z) );
+	tf::Vector3 angles = getAnglesOfTFMatrix( getTF_NU()*getRotMatrix(0,msg.pose.orientation.y,msg.pose.orientation.z) );
 	
 	// Nur Bewegung in Y-Richtung
-	tf::Vector3 angles = getAnglesOfTFMatrix( getTF_NU()*getTFfromCtoN(0,msg.pose.orientation.x,msg.pose.orientation.z+M_PI/2) );
+	//tf::Vector3 angles = getAnglesOfTFMatrix( getTF_NU()*getRotMatrix(0,msg.pose.orientation.x,msg.pose.orientation.z+M_PI/2) );
 
 	ROS_INFO( "angles: %f, %f, %f" ,angles.x(), angles.y(), angles.z());
 
@@ -269,7 +268,9 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	// Aufteilung in X- und Y-Bewegung
 
 	double g[5];	// Gelenkwinkel
-	double z = - msg.pose.position.z;		// Negation!
+	
+	// Transformation von N -> U
+	double z = (-1) * msg.pose.position.z;		// Negation!
 
 	// Rotation um Z-Achse
 	double psi = angles.z();	
@@ -340,10 +341,10 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	brics_actuator::JointPositions msg_joints;
 	geometry_msgs::Twist msg_base;
 
-	msg_base.linear.x =   msg.vel.linear.x;
-	msg_base.linear.y = - msg.vel.linear.y;	// Transformation in Plattform-Koord
+	// Transformation von N -> U
+	msg_base.linear.x =				 msg.vel.linear.x;
+	msg_base.linear.y = (-1) * msg.vel.linear.y;
 	msg_base.linear.z = 0.0f;
-
 	//ROS_INFO( "BaseV: %f, %f", msg_base.linear.x, msg_base.linear.y );
 
 	msg_base.linear.z  = 0.0f;
