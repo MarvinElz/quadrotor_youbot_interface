@@ -21,11 +21,11 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/frames.hpp>
 
+#define X_ONLY true
+#define Y_ONLY false
 
-// für Umrechnung B -> N
-#include <tf/LinearMath/Matrix3x3.h>
-#include <tf/LinearMath/Vector3.h>
-
+// Hier Einstellung, welche Bewegungsrichtung simuliert werden soll
+#define MOV_ONLY Y_ONLY
 
 // Skalierung der Translationsgeschwindigkeit & Raum
 double scaleV = 0.15;
@@ -63,32 +63,6 @@ quadrotor_control::kinematics kin_measure_msg;
 quadrotor_control::kinematics kin_model_save_msg;
 
 bool safe = false;
-
-// Hier Berechnung N <-> uBot_Base
-tf::Matrix3x3 getTF_NU(){
-	tf::Matrix3x3 transformM(
-		1.0, 0.0, 0.0,
-		0.0,-1.0, 0.0,
-		0.0, 0.0,-1.0);
-	return transformM;
-}
-
-tf::Vector3 getAnglesOfTFMatrix( const tf::Matrix3x3 &m ){
-	tf::Vector3 angles(
-		atan2( m[2][1], m[2][2] ),
-		asin( -m[2][0] ),
-		atan2( m[1][0], m[0][0] )
-		);
-	return angles;
-}
-
-
-//
-tf::Matrix3x3 getRotMatrix( double phi, double theta, double psi ){
-	tf::Matrix3x3 transformM;
-	transformM.setEulerYPR( psi, theta, phi );
-	return transformM;
-}
 
 
 // ----------------------------------------------------------------------
@@ -168,15 +142,17 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	// Neigungswinkel des obersten Gliedes
 	double phi = ( Joints(1)+Joints(2)+Joints(3) );
 
-	tf::Vector3 angles = getAnglesOfTFMatrix( getTF_NU()*getRotMatrix(0, phi ,psi) );
+	if( MOV_ONLY == X_ONLY ){
+		kin_measure_msg.pose.orientation.z = - psi;	
+		kin_measure_msg.pose.orientation.y = phi / scaleR;
+		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
+	}else{
+		kin_measure_msg.pose.orientation.z = - psi - M_PI/2;	
+		kin_measure_msg.pose.orientation.x = phi / scaleR;
+		kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
+	}
 
-	// berechnete Werte in kin_measure_msg eintragen	
-	kin_measure_msg.pose.orientation.z = angles.z();
-	// ACHTUNG BEI Y-Steuerung, weil M_PI/2
-
-	// Achtung bei Y-Steuerung, weil ...orientation.x = ...
-	kin_measure_msg.pose.orientation.y = angles.y() / scaleR;
-	kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
+	
 
 	// Transformation von U -> N
 	kin_measure_msg.vel.linear.z = (-1) * Vels(2);
@@ -189,10 +165,11 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	kin_measure_msg.vel.angular.z = - Vels(5);
 */
 
-	ROS_INFO( "Measure: PSI: % 06.4f, Vz: % 06.4f, THETA: % 06.4f", 
-		kin_measure_msg.pose.orientation.z, 
-		kin_measure_msg.vel.linear.z, 
-		kin_measure_msg.pose.orientation.y
+	ROS_INFO( "Measure: Vz: % 06.4f, Phi: % 06.4f, Theta: % 06.4f, Psi: % 06.4f", 
+		kin_measure_msg.vel.linear.z,
+		kin_measure_msg.pose.orientation.x, 		 
+		kin_measure_msg.pose.orientation.y,
+		kin_measure_msg.pose.orientation.z
 		);
 
 	synch.joint_ready = true;
@@ -261,26 +238,24 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	// Transformation von N -> U
 	double z = (-1) * msg.pose.position.z;
 
-	tf::Vector3 angles;
 	double psi, phi, delta;
 	
-	bool x = false;
-
-	if( x ){
-		angles = getAnglesOfTFMatrix( getTF_NU() * getRotMatrix(0,msg.pose.orientation.y,msg.pose.orientation.z) * getTF_NU() );
-		psi = angles.z();					
-		phi = M_PI/2 + angles.y();
+	if( MOV_ONLY == X_ONLY ){		
+		psi = - msg.pose.orientation.z;					
+		phi = M_PI/2 + msg.pose.orientation.y;
 		delta = 0;
-	}else{
-		angles = getAnglesOfTFMatrix( getTF_NU() * getRotMatrix(msg.pose.orientation.x,0,msg.pose.orientation.z) * getTF_NU() );
-		psi = angles.z() + M_PI/2;
-		phi = M_PI/2 + angles.x();
+	}else{		
+		psi = - msg.pose.orientation.z + M_PI/2;
+		phi = M_PI/2 + msg.pose.orientation.x;
 		delta = - M_PI/2;
 	}
-
-	ROS_INFO( "angles: %f, %f, %f" ,angles.x(), angles.y(), angles.z());
-
-
+/*
+	ROS_INFO( "psi: % 06.4f, phi: % 06.4f, delta: % 06.4f", 
+		psi, 
+		phi, 
+		delta
+		);
+*/
 	// Testen, ob übergebene Pose + Geschwindigkeiten sicher sind
   if( z < 0.5 ){
 		ROS_INFO("Unsichere Arbeitshoehe -> Bitte nach oben bewegen");
@@ -294,11 +269,6 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	}
 	if( abs(msg.pose.orientation.y) > 0.35 ){
 		ROS_INFO("Zu Steil! Rot(Y)");
-		safe = false;
-		return;
-	}
-	if( abs(angles.y()) > 0.35 || abs(angles.x()) > 0.35 ){
-		ROS_INFO("Zu Steil! Phi");
 		safe = false;
 		return;
 	}
@@ -320,7 +290,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	g[1] = atan2(y4, x4) + k_Arm*k_Ell * b - M_PI/2;
 	g[2] = k_Arm * k_Ell * (a-M_PI);
 	g[3] = k_Arm * ( phi - M_PI/2 ) - g[1] - g[2];
-	g[4] = delta;
+	g[4] = delta + (k_Arm-1)/2*M_PI;
 	
 	// Min - Max überprüfen
 	for( int i = 0; i < 5; i++ ){
@@ -409,7 +379,7 @@ int main(int argc, char **argv)
 	// Subscriber für Odometriedaten der Basis
 	ros::Subscriber sub_odom	= nh.subscribe("/odom", 10, callback_odom);
   
-	//pub_kin_measure = nh.advertise<quadrotor_control::kinematics>("/kin_measure", 10);
+	pub_kin_measure = nh.advertise<quadrotor_control::kinematics>("/kin_measure", 10);
 	pub_joint = nh.advertise<brics_actuator::JointPositions>("/arm_1/arm_controller/position_command", 100);
 	pub_base  = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 100);
 		
