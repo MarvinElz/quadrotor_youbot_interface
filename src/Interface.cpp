@@ -256,27 +256,29 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	msg.pose.orientation.x *= scaleR;
 	msg.pose.orientation.y *= scaleR;
 
-	// Nur Bewegung in X-Richtung
-	tf::Vector3 angles = getAnglesOfTFMatrix( getTF_NU()*getRotMatrix(0,msg.pose.orientation.y,msg.pose.orientation.z) );
-	
-	// Nur Bewegung in Y-Richtung
-	//tf::Vector3 angles = getAnglesOfTFMatrix( getTF_NU()*getRotMatrix(0,msg.pose.orientation.x,msg.pose.orientation.z+M_PI/2) );
-
-	ROS_INFO( "angles: %f, %f, %f" ,angles.x(), angles.y(), angles.z());
-
-	// inverse Kinematik
-	// Aufteilung in X- und Y-Bewegung
-
 	double g[5];	// Gelenkwinkel
 	
 	// Transformation von N -> U
-	double z = (-1) * msg.pose.position.z;		// Negation!
+	double z = (-1) * msg.pose.position.z;
 
-	// Rotation um Z-Achse
-	double psi = angles.z();	
+	tf::Vector3 angles;
+	double psi, phi, delta;
+	
+	bool x = true;
 
-	// Rotation um Y-Achse (phi aus inverser Kin.)
-	double phi = M_PI/2 + angles.y();
+	if( x ){
+		angles = getAnglesOfTFMatrix( getTF_NU() * getRotMatrix(0,msg.pose.orientation.y,msg.pose.orientation.z) * getTF_NU() );
+		psi = angles.z();					
+		phi = M_PI/2 + angles.y();
+		delta = 0;
+	}else{
+		angles = getAnglesOfTFMatrix( getTF_NU() * getRotMatrix(msg.pose.orientation.x,0,msg.pose.orientation.z) * getTF_NU() );
+		psi = angles.z() + M_PI/2;
+		phi = M_PI/2 + angles.x();
+		delta = - M_PI/2;
+	}
+
+	ROS_INFO( "angles: %f, %f, %f" ,angles.x(), angles.y(), angles.z());
 
 
 	// Testen, ob übergebene Pose + Geschwindigkeiten sicher sind
@@ -295,7 +297,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 		safe = false;
 		return;
 	}
-	if( abs(angles.y() > 0.35) ){
+	if( abs(angles.y()) > 0.35 || abs(angles.x()) > 0.35 ){
 		ROS_INFO("Zu Steil! Phi");
 		safe = false;
 		return;
@@ -318,13 +320,11 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	g[1] = atan2(y4, x4) + k_Arm*k_Ell * b - M_PI/2;
 	g[2] = k_Arm * k_Ell * (a-M_PI);
 	g[3] = k_Arm * ( phi - M_PI/2 ) - g[1] - g[2];
-	// Abhängig von X- oder Y-Steuerung
-	// für X: 0, für Y +- M_PI/2
-	g[4] = 0;
+	g[4] = delta;
 	
 	// Min - Max überprüfen
 	for( int i = 0; i < 5; i++ ){
-		if( g[i] < joint_min_angles[i] || g[i] > joint_max_angles[i] ){
+		if( g[i] < joint_min_angles[i] || g[i] > joint_max_angles[i] || (g[i] != g[i]) ){
 			ROS_INFO("Pose nicht anfahrbar. Gelenk %i : %f", (i+1), g[i]);
 			safe = false;
 			return;
