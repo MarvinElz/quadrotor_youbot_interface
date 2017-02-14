@@ -264,16 +264,16 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	tf::Vector3 angles;
 	double psi, phi, delta;
 	
-	bool x = true;
+	bool x = false;
 
 	if( x ){
 		angles = getAnglesOfTFMatrix( getTF_NU() * getRotMatrix(0,msg.pose.orientation.y,msg.pose.orientation.z) * getTF_NU() );
-		psi = angles.z();					
+		psi = - angles.z();					
 		phi = M_PI/2 + angles.y();
 		delta = 0;
 	}else{
 		angles = getAnglesOfTFMatrix( getTF_NU() * getRotMatrix(msg.pose.orientation.x,0,msg.pose.orientation.z) * getTF_NU() );
-		psi = angles.z() + M_PI/2;
+		psi = - angles.z() + M_PI/2;
 		phi = M_PI/2 + angles.x();
 		delta = - M_PI/2;
 	}
@@ -307,7 +307,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	// -----------   Inverse Kinematik   -------------------------
 
 	//Hilfsgrößen
-	double x4 = k_Arm*( - d5*cos( phi ) ) - a1;
+	double x4 = k_Arm*( - d5*cos( phi ) ) + a1;
 	//ROS_INFO( "x4: %f", x4 );
 	double y4 = z - d1 - d5 * sin( phi );
 	//ROS_INFO( "y4: %f", y4 );
@@ -320,7 +320,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	g[1] = atan2(y4, x4) + k_Arm*k_Ell * b - M_PI/2;
 	g[2] = k_Arm * k_Ell * (a-M_PI);
 	g[3] = k_Arm * ( phi - M_PI/2 ) - g[1] - g[2];
-	g[4] = delta;
+	g[4] = delta + (k_Arm-1)/2*M_PI;
 	
 	// Min - Max überprüfen
 	for( int i = 0; i < 5; i++ ){
@@ -409,7 +409,7 @@ int main(int argc, char **argv)
 	// Subscriber für Odometriedaten der Basis
 	ros::Subscriber sub_odom	= nh.subscribe("/odom", 10, callback_odom);
   
-	//pub_kin_measure = nh.advertise<quadrotor_control::kinematics>("/kin_measure", 10);
+	pub_kin_measure = nh.advertise<quadrotor_control::kinematics>("/kin_measure", 10);
 	pub_joint = nh.advertise<brics_actuator::JointPositions>("/arm_1/arm_controller/position_command", 100);
 	pub_base  = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 100);
 		
