@@ -28,7 +28,7 @@
 #define MOV_ONLY Y_ONLY
 
 // Skalierung der Translationsgeschwindigkeit & Raum
-double scaleV = 0.15;
+double scaleT = 0.15;
 // Skalierung der Winkelgeschwindigkeit
 double scaleR = 0.2;
 
@@ -85,8 +85,8 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	*/
 
 	// Transformation von U -> N + Skalierung
-	kin_measure_msg.vel.linear.x = 				msg->twist.twist.linear.x / scaleV;
-	kin_measure_msg.vel.linear.y = (-1) * msg->twist.twist.linear.x / scaleV;
+	kin_measure_msg.vel.linear.x = 				msg->twist.twist.linear.x / scaleT;
+	kin_measure_msg.vel.linear.y = (-1) * msg->twist.twist.linear.x / scaleT;
 	
 	ROS_INFO("Measure: VX: % 06.4f, VY: % 06.4f", 
 		kin_measure_msg.vel.linear.x, 
@@ -132,9 +132,9 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	Vels = Jacobi * JointVels.data; // [0..2] v, [3..5] w
 	
 	// Vels skalieren
-	Vels(0) /= scaleV;	// VX ~ 0
-	Vels(1) /= scaleV;	// VY ~ 0
-	Vels(2) /= scaleV;
+	Vels(0) /= scaleT;	// VX ~ 0
+	Vels(1) /= scaleT;	// VY ~ 0
+	Vels(2) /= scaleT;
 
 	// PSI berechnen
 	double psi = Joints(0);	
@@ -222,12 +222,12 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 
 	// Scale: Vx, Vy, Vz
 	//tf::Vector3 
-	msg.vel.linear.x *= scaleV;
-	msg.vel.linear.y *= scaleV;
-	msg.vel.linear.z *= scaleV;			// wird nicht benötigt
-	msg.pose.position.x *= scaleV;	// wird nicht benötigt
-	msg.pose.position.y *= scaleV;	// wird nicht benötigt
-	msg.pose.position.z *= scaleV;
+	msg.vel.linear.x *= scaleT;
+	msg.vel.linear.y *= scaleT;
+	msg.vel.linear.z *= scaleT;			// wird nicht benötigt
+	msg.pose.position.x *= scaleT;	// wird nicht benötigt
+	msg.pose.position.y *= scaleT;	// wird nicht benötigt
+	msg.pose.position.z *= scaleT;
 
 	// Scale: Phi, Theta
 	msg.pose.orientation.x *= scaleR;
@@ -345,8 +345,8 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 
 
 void getConstants(ros::NodeHandle &nh){
-	nh.getParam("scaleV", scaleV);
-	ROS_INFO("SCALE V: %f", scaleV);
+	nh.getParam("scaleT", scaleT);
+	ROS_INFO("SCALE V: %f", scaleT);
 	nh.getParam("scaleR", scaleR);
 	ROS_INFO("SCALE R: %f", scaleR);
 	nh.getParam("a1", a1);
