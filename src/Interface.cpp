@@ -25,7 +25,7 @@
 #define Y_ONLY false
 
 // Hier Einstellung, welche Bewegungsrichtung simuliert werden soll
-#define MOV_ONLY Y_ONLY
+#define MOV_ONLY X_ONLY
 
 // Skalierung der Translationsgeschwindigkeit & Raum
 double scaleT = 0.15;
@@ -143,19 +143,18 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	double phi = ( Joints(1)+Joints(2)+Joints(3) );
 
 	if( MOV_ONLY == X_ONLY ){
-		kin_measure_msg.pose.orientation.z = - psi;	
-		kin_measure_msg.pose.orientation.y = phi / scaleR;
+		kin_measure_msg.pose.orientation.z = psi;	
+		kin_measure_msg.pose.orientation.y = - phi / scaleR;
 		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
 	}else{
-		kin_measure_msg.pose.orientation.z = - psi - M_PI/2;	
+		kin_measure_msg.pose.orientation.z = psi - M_PI/2;	
 		kin_measure_msg.pose.orientation.x = phi / scaleR;
 		kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
 	}
 
-	
-
 	// Transformation von U -> N
-	kin_measure_msg.vel.linear.z = (-1) * Vels(2);
+	//kin_measure_msg.vel.linear.z = (-1) * Vels(2);
+	kin_measure_msg.vel.linear.z = (1) * Vels(2);
 
 /*	
 	// Winkelgeschwindigkeiten (vielleicht nicht möglich aufgrund Rauschen)
@@ -241,11 +240,11 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	double psi, phi, delta;
 	
 	if( MOV_ONLY == X_ONLY ){		
-		psi = - msg.pose.orientation.z;					
-		phi = M_PI/2 + msg.pose.orientation.y;
+		psi = msg.pose.orientation.z;					
+		phi = M_PI/2 - msg.pose.orientation.y;
 		delta = 0;
 	}else{		
-		psi = - msg.pose.orientation.z + M_PI/2;
+		psi = msg.pose.orientation.z + M_PI/2;
 		phi = M_PI/2 + msg.pose.orientation.x;
 		delta = - M_PI/2;
 	}
@@ -277,7 +276,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	// -----------   Inverse Kinematik   -------------------------
 
 	//Hilfsgrößen
-	double x4 = k_Arm*( - d5*cos( phi ) ) - a1;
+	double x4 = k_Arm*( - d5*cos( phi ) ) + a1;
 	//ROS_INFO( "x4: %f", x4 );
 	double y4 = z - d1 - d5 * sin( phi );
 	//ROS_INFO( "y4: %f", y4 );

@@ -7,4 +7,4 @@ Interface:
   d1: 0.147
   d5: 0.2175
   k_Arm: 1
-  k_Ell: -1
+  k_Ell: 1
