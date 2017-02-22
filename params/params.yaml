@@ -1,5 +1,5 @@
 Interface: 
-  scaleV: 0.02
+  scaleT: 0.02
   scaleR: 0.1
   a1: 0.033
   a2: 0.155
@@ -7,4 +7,4 @@ Interface:
   d1: 0.147
   d5: 0.2175
   k_Arm: 1
-  k_Ell: -1
+  k_Ell: 1
