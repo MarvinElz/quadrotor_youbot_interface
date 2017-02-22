@@ -21,11 +21,19 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/frames.hpp>
 
+#define LOGGING
+#ifdef LOGGING
+	#include <fstream>
+	using namespace std;
+	ofstream logFile;
+	double simTime = 0;
+#endif
+
 #define X_ONLY true
 #define Y_ONLY false
 
 // Hier Einstellung, welche Bewegungsrichtung simuliert werden soll
-#define MOV_ONLY X_ONLY
+#define MOV_ONLY Y_ONLY
 
 // Skalierung der Translationsgeschwindigkeit & Raum
 double scaleT = 0.15;
@@ -170,6 +178,9 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 		kin_measure_msg.pose.orientation.y,
 		kin_measure_msg.pose.orientation.z
 		);
+	#ifdef LOGGING		
+		logFile << kin_measure_msg.vel.linear.z << "," << kin_measure_msg.pose.orientation.x << "," << kin_measure_msg.pose.orientation.y << "," << kin_measure_msg.pose.orientation.z << std::endl; 
+	#endif
 
 	synch.joint_ready = true;
 	if( synch.IMU_ready && synch.base_ready ){
@@ -367,6 +378,15 @@ int main(int argc, char **argv)
 
 	getConstants(nh);
 	
+	#ifdef LOGGING
+		char filePathName[] = "/home/student/Schreibtisch/log.txt";
+		logFile.open(filePathName); 
+		if(!logFile.is_open()){
+			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathName);
+			return 0;
+		}
+	#endif
+
 	// for testing
 	ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
 	//ros::Subscriber sub_kin = nh.subscribe("/kin_model", 10, callback_kin_model);
