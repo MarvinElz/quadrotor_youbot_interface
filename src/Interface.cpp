@@ -264,7 +264,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	tf::Vector3 angles;
 	double psi, phi, delta;
 	
-	bool x = false;
+	bool x = true;
 
 	if( x ){
 		angles = getAnglesOfTFMatrix( getTF_NU() * getRotMatrix(0,msg.pose.orientation.y,msg.pose.orientation.z) * getTF_NU() );
