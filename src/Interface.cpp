@@ -3,7 +3,7 @@
 #include "geometry_msgs/Twist.h"
 
 #include "sensor_msgs/JointState.h"
-#include "sensor_msgs/Imu.h"
+#include "geometry_msgs/Vector3Stamped.h"	// imu_Complementary_filter
 #include "quadrotor_control/kinematics.h"
 #include "nav_msgs/Odometry.h"
 #include "geometry_msgs/TwistWithCovariance.h"
@@ -73,7 +73,7 @@ bool safe = false;
 void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	
 	if( safe == false ){
-		pub_kin_measure.publish( kin_model_save_msg );
+		//pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 
@@ -94,7 +94,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 
 	synch.base_ready = true;
 	if( synch.IMU_ready && synch.joint_ready ){
-		pub_kin_measure.publish( kin_measure_msg );
+		//pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -108,7 +108,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
 	if( safe == false ){
-		pub_kin_measure.publish( kin_model_save_msg );
+		//pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 
@@ -173,7 +173,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
 	synch.joint_ready = true;
 	if( synch.IMU_ready && synch.base_ready ){
-		pub_kin_measure.publish( kin_measure_msg );
+		//pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -183,23 +183,23 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 /*
 	Wird aufgerufen, wenn IMU neue Daten liefert, Daten wofür???
 */
-void callback_imu( const sensor_msgs::Imu::Ptr& msg){
-
+void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 	if( safe == false ){
-		pub_kin_measure.publish( kin_model_save_msg );
+		//pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
-	
-/*
-	kin_measure_msg.vel.angular.x = msg->angular_velocity.x / scaleR;
-	kin_measure_msg.vel.angular.y = msg->angular_velocity.y / scaleR;
-	kin_measure_msg.vel.angular.z = msg->angular_velocity.z;
-*/
-	// HIER ROTATION DER WINKELGESCHW. VON B -> N
+
+	if( MOV_ONLY == X_ONLY ){		
+		kin_measure_msg.pose.orientation.y = - msg->vector.y / scaleR;
+		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
+	}else{
+		kin_measure_msg.pose.orientation.x =   msg->vector.x / scaleR;
+		kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
+	}
 
 	synch.IMU_ready = true;
 	if( synch.joint_ready && synch.base_ready ){
-		pub_kin_measure.publish( kin_measure_msg );
+		//pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -374,7 +374,7 @@ int main(int argc, char **argv)
 	// Subscriber für Gelenkwinkel-änderungen
 	ros::Subscriber sub_joint = nh.subscribe("/joint_states", 10, callback_JointState);
 	// Subscriber für IMU
-	ros::Subscriber sub_imu   = nh.subscribe("/imu/data_raw", 10, callback_imu);
+	ros::Subscriber sub_imu   = nh.subscribe("/imu/rpy/filtered", 10, callback_imu);
 	// Subscriber für Odometriedaten der Basis
 	ros::Subscriber sub_odom	= nh.subscribe("/odom", 10, callback_odom);
   
