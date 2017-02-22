@@ -33,7 +33,7 @@
 #define Y_ONLY false
 
 // Hier Einstellung, welche Bewegungsrichtung simuliert werden soll
-#define MOV_ONLY Y_ONLY
+#define MOV_ONLY X_ONLY
 
 // Skalierung der Translationsgeschwindigkeit & Raum
 double scaleT = 0.15;
@@ -383,7 +383,7 @@ int main(int argc, char **argv)
 	getConstants(nh);
 	
 	#ifdef LOGGING
-		char filePathName[] = "/home/student/Schreibtisch/log.txt";
+		char filePathName[] = "/home/youbot/Desktop/log.txt";
 		logFile.open(filePathName); 
 		if(!logFile.is_open()){
 			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathName);
