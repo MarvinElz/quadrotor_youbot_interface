@@ -389,6 +389,7 @@ int main(int argc, char **argv)
 			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathName);
 			return 0;
 		}
+		logFile << "  Z  ,  PHI  ,  THETA  ,  PSI  " << std::endl; 
 	#endif
 
 	// for testing
