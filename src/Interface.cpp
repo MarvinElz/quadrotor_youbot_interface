@@ -80,8 +80,7 @@ bool safe = false;
 */
 void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	
-	if( safe == false ){
-		//pub_kin_measure.publish( kin_model_save_msg );
+	if( safe == false ){		
 		return;
 	}
 
@@ -111,12 +110,11 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 
 /*
 	Wird aufgerufen, wenn Winkelinformationen (des Youbots) aktualisiert werden
-	Errechnet: Vz, PSI, PHI, THETA, PHI'
+	Errechnet: Vz, PSI, PHI, THETA, PSI'
 */
 void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
 	if( safe == false ){
-		//pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 
@@ -156,13 +154,16 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
 	}else{
 		kin_measure_msg.pose.orientation.z = psi - M_PI/2;	
-		kin_measure_msg.pose.orientation.x = phi / scaleR;
 		kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
+		kin_measure_msg.pose.orientation.x = phi / scaleR;
 	}
 
 	// Transformation von U -> N
 	//kin_measure_msg.vel.linear.z = (-1) * Vels(2);
 	kin_measure_msg.vel.linear.z = (1) * Vels(2);
+
+	// vielleicht (-1)*...
+	kin_measure_msg.vel.angular.z = msg->velocity[0];
 
 /*	
 	// Winkelgeschwindigkeiten (vielleicht nicht möglich aufgrund Rauschen)
@@ -172,14 +173,20 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	kin_measure_msg.vel.angular.z = - Vels(5);
 */
 
-	ROS_INFO( "Measure: Vz: % 06.4f, Phi: % 06.4f, Theta: % 06.4f, Psi: % 06.4f", 
+	ROS_INFO( "Measure: Vz: % 06.4f, Phi: % 06.4f, Theta: % 06.4f, Psi: % 06.4f, VPsi: % 06.4f", 
 		kin_measure_msg.vel.linear.z,
 		kin_measure_msg.pose.orientation.x, 		 
 		kin_measure_msg.pose.orientation.y,
-		kin_measure_msg.pose.orientation.z
+		kin_measure_msg.pose.orientation.z,
+		kin_measure_msg.vel.angular.z
 		);
 	#ifdef LOGGING		
-		logFile << kin_measure_msg.vel.linear.z << "," << kin_measure_msg.pose.orientation.x << "," << kin_measure_msg.pose.orientation.y << "," << kin_measure_msg.pose.orientation.z << std::endl; 
+		logFile << kin_measure_msg.vel.linear.z << "," 
+				<< kin_measure_msg.pose.orientation.x << "," 
+				<< kin_measure_msg.pose.orientation.y << "," 
+				<< kin_measure_msg.pose.orientation.z << "," 
+				<< kin_measure_msg.vel.angular.z 
+				<< std::endl; 
 	#endif
 
 	synch.joint_ready = true;
@@ -195,8 +202,8 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	Wird aufgerufen, wenn IMU neue Daten liefert, Daten wofür???
 */
 void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
+
 	if( safe == false ){
-		//pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 
@@ -222,9 +229,8 @@ void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 	-> Aufbereitung und Weitergabe an youBot
 */
 void callback_kin_model( quadrotor_control::kinematics msg ){
-	
-	// Unschuldsbehauptung
-	safe = true;
+
+	safe = false;
 
 	// Kopiere die aktuellen Kinematics
 	// für den Fall safe == false -> direkte Rückführung)
@@ -249,10 +255,6 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	double z = (-1) * msg.pose.position.z;
 
 	double psi, phi, delta;
-	
-
-	bool x = true;
-
 
 	if( MOV_ONLY == X_ONLY ){		
 		psi = msg.pose.orientation.z;					
@@ -271,19 +273,19 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 		);
 */
 	// Testen, ob übergebene Pose + Geschwindigkeiten sicher sind
-  if( z < 0.5 ){
+	if( z < 0.5 ){
 		ROS_INFO("Unsichere Arbeitshoehe -> Bitte nach oben bewegen");
-		safe = false;
+		//pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	if( abs(msg.pose.orientation.x) > 0.35 ){
 		ROS_INFO("Zu Steil! Rot(X)");
-		safe = false;
+		//pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	if( abs(msg.pose.orientation.y) > 0.35 ){
 		ROS_INFO("Zu Steil! Rot(Y)");
-		safe = false;
+		//pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	
@@ -310,7 +312,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	for( int i = 0; i < 5; i++ ){
 		if( g[i] < joint_min_angles[i] || g[i] > joint_max_angles[i] || (g[i] != g[i]) ){
 			ROS_INFO("Pose nicht anfahrbar. Gelenk %i : %f", (i+1), g[i]);
-			safe = false;
+			//pub_kin_measure.publish( kin_model_save_msg );
 			return;
 		}
 	}
@@ -326,9 +328,8 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	geometry_msgs::Twist msg_base;
 
 	// Transformation von N -> U
-	msg_base.linear.x =				 msg.vel.linear.x;
+	msg_base.linear.x =		msg.vel.linear.x;
 	msg_base.linear.y = (-1) * msg.vel.linear.y;
-	msg_base.linear.z = 0.0f;
 	//ROS_INFO( "BaseV: %f, %f", msg_base.linear.x, msg_base.linear.y );
 
 	msg_base.linear.z  = 0.0f;
@@ -351,6 +352,9 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	poison.description  = "";   // what?
 	poison.qos          = 1.0f; // right?
 	msg_joints.poisonStamp = poison;
+
+	// Position anfahrbar
+	safe = true;
 
 	pub_base.publish(msg_base); 
 	pub_joint.publish( msg_joints );
@@ -389,7 +393,7 @@ int main(int argc, char **argv)
 			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathName);
 			return 0;
 		}
-		logFile << "  Z  ,  PHI  ,  THETA  ,  PSI  " << std::endl; 
+		logFile << "  Z  , PHI ,THETA, PSI , VPsi" << std::endl; 
 	#endif
 
 	// for testing
