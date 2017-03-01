@@ -93,7 +93,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 
 	// Transformation von U -> N + Skalierung
 	kin_measure_msg.vel.linear.x = 				msg->twist.twist.linear.x / scaleT;
-	kin_measure_msg.vel.linear.y = (-1) * msg->twist.twist.linear.x / scaleT;
+	kin_measure_msg.vel.linear.y = (-1) * msg->twist.twist.linear.y / scaleT;
 	
 	ROS_INFO("Measure: VX: % 06.4f, VY: % 06.4f", 
 		kin_measure_msg.vel.linear.x, 
@@ -113,6 +113,8 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	Errechnet: Vz, PSI, PHI, THETA, PSI'
 */
 void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
+
+	// hier Überprüfung, ob es sich um die JointState-Daten vom Manipulator handelt ???
 
 	if( safe == false ){
 		return;
@@ -201,7 +203,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 }
 
 /*
-	Wird aufgerufen, wenn IMU neue Daten liefert, Daten wofür???
+	Wird aufgerufen, wenn IMU neue Daten liefert
 */
 void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 
@@ -343,7 +345,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	for( int i = 0; i <= 4; i++ ){
 		brics_actuator::JointValue jv;
 		jv.timeStamp = time_now;        
-		jv.joint_uri = joint_names[i];
+		jv.joint_uri = joint_names[i];	// z.B. arm_joint_1
 		jv.unit = "rad";
 		jv.value = g[i];
 		msg_joints.positions.push_back(jv);
