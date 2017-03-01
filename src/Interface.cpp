@@ -181,11 +181,11 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 		kin_measure_msg.vel.angular.z
 		);
 	#ifdef LOGGING		
-		logFile << simTime << ","
-				<< kin_measure_msg.vel.linear.z << "," 
-				<< kin_measure_msg.pose.orientation.x << "," 
-				<< kin_measure_msg.pose.orientation.y << "," 
-				<< kin_measure_msg.pose.orientation.z << "," 
+		logFile << simTime << " , "
+				<< kin_measure_msg.vel.linear.z << " , " 
+				<< kin_measure_msg.pose.orientation.x << " , " 
+				<< kin_measure_msg.pose.orientation.y << " , " 
+				<< kin_measure_msg.pose.orientation.z << " , " 
 				<< kin_measure_msg.vel.angular.z 
 				<< std::endl; 
 		simTime += 0.005;
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
 			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathName);
 			return 0;
 		}
-		logFile << "SimT,  Z  , PHI ,THETA, PSI , VPsi" << std::endl; 
+		logFile << "SimT,  VZ  , PHI ,THETA, PSI , VPsi" << std::endl; 
 	#endif
 
 	// for testing
