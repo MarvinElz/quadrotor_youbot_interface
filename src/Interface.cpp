@@ -21,13 +21,11 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/frames.hpp>
 
-//#define LOGGING
-#ifdef LOGGING
-	#include <fstream>
-	using namespace std;
-	ofstream logFile;
-	double simTime = 0;
-#endif
+bool logging = false;
+#include <fstream>
+using namespace std;
+ofstream logFile;
+double simTime = 0;
 
 #define X_ONLY true
 #define Y_ONLY false
@@ -72,6 +70,18 @@ quadrotor_control::kinematics kin_model_save_msg;
 
 bool safe = false;
 
+void writeToLogfile(){
+	if( logging ){		
+		logFile << simTime << " , "
+				<< kin_measure_msg.vel.linear.z << " , " 
+				<< kin_measure_msg.pose.orientation.x << " , " 
+				<< kin_measure_msg.pose.orientation.y << " , " 
+				<< kin_measure_msg.pose.orientation.z << " , " 
+				<< kin_measure_msg.vel.angular.z 
+				<< std::endl; 
+		simTime += 0.005;
+	}
+}
 
 // ----------------------------------------------------------------------
 
@@ -102,6 +112,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	synch.base_ready = true;
 	if( synch.IMU_ready && synch.joint_ready ){
 		//pub_kin_measure.publish( kin_measure_msg );
+		writeToLogfile();
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -182,20 +193,11 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 		kin_measure_msg.pose.orientation.z,
 		kin_measure_msg.vel.angular.z
 		);
-	#ifdef LOGGING		
-		logFile << simTime << " , "
-				<< kin_measure_msg.vel.linear.z << " , " 
-				<< kin_measure_msg.pose.orientation.x << " , " 
-				<< kin_measure_msg.pose.orientation.y << " , " 
-				<< kin_measure_msg.pose.orientation.z << " , " 
-				<< kin_measure_msg.vel.angular.z 
-				<< std::endl; 
-		simTime += 0.005;
-	#endif
 
 	synch.joint_ready = true;
 	if( synch.IMU_ready && synch.base_ready ){
 		//pub_kin_measure.publish( kin_measure_msg );
+		writeToLogfile();
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -211,17 +213,23 @@ void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 		return;
 	}
 
+
+
 	if( MOV_ONLY == X_ONLY ){		
 		kin_measure_msg.pose.orientation.y = - msg->vector.y / scaleR;
 		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
 	}else{
-		kin_measure_msg.pose.orientation.x =   msg->vector.x / scaleR;
+		if( msg->vector.x < 0 )
+			kin_measure_msg.pose.orientation.x =   (msg->vector.x + M_PI) / scaleR;
+		else
+			kin_measure_msg.pose.orientation.x =   (msg->vector.x - M_PI) / scaleR;
 		kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
 	}
 
 	synch.IMU_ready = true;
 	if( synch.joint_ready && synch.base_ready ){
 		//pub_kin_measure.publish( kin_measure_msg );
+		writeToLogfile();
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -368,7 +376,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 
 void getConstants(ros::NodeHandle &nh){
 	nh.getParam("scaleT", scaleT);
-	ROS_INFO("SCALE V: %f", scaleT);
+	ROS_INFO("SCALE T: %f", scaleT);
 	nh.getParam("scaleR", scaleR);
 	ROS_INFO("SCALE R: %f", scaleR);
 	nh.getParam("a1", a1);
@@ -378,6 +386,7 @@ void getConstants(ros::NodeHandle &nh){
 	nh.getParam("d5", d5);
 	nh.getParam("k_Arm", k_Arm);
 	nh.getParam("k_Ell", k_Ell);
+	nh.getParam("logging", logging);
 }
 
 int main(int argc, char **argv)
@@ -390,7 +399,7 @@ int main(int argc, char **argv)
 
 	getConstants(nh);
 	
-	#ifdef LOGGING
+	if( logging ){
 		char filePathName[] = "/home/youbot/Desktop/log.txt";
 		logFile.open(filePathName); 
 		if(!logFile.is_open()){
@@ -398,7 +407,7 @@ int main(int argc, char **argv)
 			return 0;
 		}
 		logFile << "SimT,  VZ  , PHI ,THETA, PSI , VPsi" << std::endl; 
-	#endif
+	}
 
 	// for testing
 	ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
