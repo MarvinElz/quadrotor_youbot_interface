@@ -3,7 +3,8 @@
 #include "geometry_msgs/Twist.h"
 
 #include "sensor_msgs/JointState.h"
-#include "sensor_msgs/Imu.h"
+#include "sensor_msgs/Imu.h"							// Beschleunigungsmessung
+#include "geometry_msgs/Vector3Stamped.h"	// imu_Complementary_filter
 #include "quadrotor_control/kinematics.h"
 #include "nav_msgs/Odometry.h"
 #include "geometry_msgs/TwistWithCovariance.h"
@@ -21,14 +22,24 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/frames.hpp>
 
+#include <tf/LinearMath/Vector3.h>
+//#include "geometry_msgs/Vector3.h"
+
+bool logging = false;
+#include <fstream>
+using namespace std;
+string filePathIST;
+ofstream logFileIST;
+double simTime = 0;
+
 #define X_ONLY true
 #define Y_ONLY false
 
 // Hier Einstellung, welche Bewegungsrichtung simuliert werden soll
-#define MOV_ONLY Y_ONLY
+#define MOV_ONLY X_ONLY
 
 // Skalierung der Translationsgeschwindigkeit & Raum
-double scaleV = 0.15;
+double scaleT = 0.15;
 // Skalierung der Winkelgeschwindigkeit
 double scaleR = 0.2;
 
@@ -65,15 +76,47 @@ quadrotor_control::kinematics kin_model_save_msg;
 bool safe = false;
 
 
+ros::Time last;
+tf::Vector3 V_S = tf::Vector3(0.0, 0.0, 0.0);
 // ----------------------------------------------------------------------
+
+/*
+	Wird aufgerufen, wenn IMU-Daten vorhanden sind (RAW)
+*/
+void callback_imu_raw( const sensor_msgs::Imu::Ptr& msg ){
+	// MAGIC
+	if( logging ){		
+		// TODO: Orientierung der IMU beschaffen
+		
+		ros::Time now = ros::Time::now();
+		double dt = (now - last).toSec(); 
+		last = now;
+		tf::Vector3 A_B = tf::Vector3(
+			msg->linear_acceleration.x, 
+			msg->linear_acceleration.y,
+			msg->linear_acceleration.z);
+
+		// hier noch Transformation von B->S
+		V_S += A_B * dt;		
+
+		logFileIST << simTime << " , "
+				<< kin_measure_msg.vel.linear.z << " , " 
+				<< kin_measure_msg.pose.orientation.x << " , " 
+				<< kin_measure_msg.pose.orientation.y << " , " 
+				<< kin_measure_msg.pose.orientation.z << " , " 
+				<< kin_measure_msg.vel.angular.z 
+				<< std::endl; 
+		simTime += 0.005;
+	}
+
+}
 
 /*
 	Wird aufgerufen, wenn Odometriedaten (des Youbots) aktualisiert werden
 */
 void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	
-	if( safe == false ){
-		pub_kin_measure.publish( kin_model_save_msg );
+	if( safe == false ){		
 		return;
 	}
 
@@ -85,13 +128,13 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	*/
 
 	// Transformation von U -> N + Skalierung
-	kin_measure_msg.vel.linear.x = 				msg->twist.twist.linear.x / scaleV;
-	kin_measure_msg.vel.linear.y = (-1) * msg->twist.twist.linear.x / scaleV;
-	
+	kin_measure_msg.vel.linear.x = 				msg->twist.twist.linear.x / scaleT;
+	kin_measure_msg.vel.linear.y = (-1) * msg->twist.twist.linear.y / scaleT;
+	/*
 	ROS_INFO("Measure: VX: % 06.4f, VY: % 06.4f", 
 		kin_measure_msg.vel.linear.x, 
 		kin_measure_msg.vel.linear.y);
-
+	*/
 	synch.base_ready = true;
 	if( synch.IMU_ready && synch.joint_ready ){
 		pub_kin_measure.publish( kin_measure_msg );
@@ -103,12 +146,13 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 
 /*
 	Wird aufgerufen, wenn Winkelinformationen (des Youbots) aktualisiert werden
-	Errechnet: Vz, PSI, PHI, THETA, PHI'
+	Errechnet: Vz, PSI, PHI, THETA, PSI'
 */
 void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
+	// hier Überprüfung, ob es sich um die JointState-Daten vom Manipulator handelt ???
+
 	if( safe == false ){
-		pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 
@@ -132,9 +176,9 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	Vels = Jacobi * JointVels.data; // [0..2] v, [3..5] w
 	
 	// Vels skalieren
-	Vels(0) /= scaleV;	// VX ~ 0
-	Vels(1) /= scaleV;	// VY ~ 0
-	Vels(2) /= scaleV;
+	Vels(0) /= scaleT;	// VX ~ 0
+	Vels(1) /= scaleT;	// VY ~ 0
+	Vels(2) /= scaleT;
 
 	// PSI berechnen
 	double psi = Joints(0);	
@@ -143,19 +187,21 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	double phi = ( Joints(1)+Joints(2)+Joints(3) );
 
 	if( MOV_ONLY == X_ONLY ){
-		kin_measure_msg.pose.orientation.z = - psi;	
-		kin_measure_msg.pose.orientation.y = phi / scaleR;
-		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
+		kin_measure_msg.pose.orientation.z = psi;	
+		//kin_measure_msg.pose.orientation.y = - phi / scaleR;
+		//kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
 	}else{
-		kin_measure_msg.pose.orientation.z = - psi - M_PI/2;	
-		kin_measure_msg.pose.orientation.x = phi / scaleR;
-		kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
+		kin_measure_msg.pose.orientation.z = psi - M_PI/2;	
+		//kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
+		//kin_measure_msg.pose.orientation.x = phi / scaleR;
 	}
 
-	
-
 	// Transformation von U -> N
-	kin_measure_msg.vel.linear.z = (-1) * Vels(2);
+	//kin_measure_msg.vel.linear.z = (-1) * Vels(2);
+	kin_measure_msg.vel.linear.z = (1) * Vels(2);
+
+	// vielleicht (-1)*...
+	kin_measure_msg.vel.angular.z = msg->velocity[0];
 
 /*	
 	// Winkelgeschwindigkeiten (vielleicht nicht möglich aufgrund Rauschen)
@@ -165,11 +211,12 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	kin_measure_msg.vel.angular.z = - Vels(5);
 */
 
-	ROS_INFO( "Measure: Vz: % 06.4f, Phi: % 06.4f, Theta: % 06.4f, Psi: % 06.4f", 
+	ROS_INFO( "Measure: Vz: % 06.4f, Phi: % 06.4f, Theta: % 06.4f, Psi: % 06.4f, VPsi: % 06.4f", 
 		kin_measure_msg.vel.linear.z,
 		kin_measure_msg.pose.orientation.x, 		 
 		kin_measure_msg.pose.orientation.y,
-		kin_measure_msg.pose.orientation.z
+		kin_measure_msg.pose.orientation.z,
+		kin_measure_msg.vel.angular.z
 		);
 
 	synch.joint_ready = true;
@@ -182,21 +229,24 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 }
 
 /*
-	Wird aufgerufen, wenn IMU neue Daten liefert, Daten wofür???
+	Wird aufgerufen, wenn IMU neue Daten liefert
 */
-void callback_imu( const sensor_msgs::Imu::Ptr& msg){
+void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 
 	if( safe == false ){
-		pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
-	
-/*
-	kin_measure_msg.vel.angular.x = msg->angular_velocity.x / scaleR;
-	kin_measure_msg.vel.angular.y = msg->angular_velocity.y / scaleR;
-	kin_measure_msg.vel.angular.z = msg->angular_velocity.z;
-*/
-	// HIER ROTATION DER WINKELGESCHW. VON B -> N
+
+	if( MOV_ONLY == X_ONLY ){		
+		kin_measure_msg.pose.orientation.y = - msg->vector.y / scaleR;
+		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
+	}else{
+		if( msg->vector.x < 0 )
+			kin_measure_msg.pose.orientation.x =   (msg->vector.x + M_PI) / scaleR;
+		else
+			kin_measure_msg.pose.orientation.x =   (msg->vector.x - M_PI) / scaleR;
+		kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
+	}
 
 	synch.IMU_ready = true;
 	if( synch.joint_ready && synch.base_ready ){
@@ -212,9 +262,8 @@ void callback_imu( const sensor_msgs::Imu::Ptr& msg){
 	-> Aufbereitung und Weitergabe an youBot
 */
 void callback_kin_model( quadrotor_control::kinematics msg ){
-	
-	// Unschuldsbehauptung
-	safe = true;
+
+	safe = false;
 
 	// Kopiere die aktuellen Kinematics
 	// für den Fall safe == false -> direkte Rückführung)
@@ -222,12 +271,12 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 
 	// Scale: Vx, Vy, Vz
 	//tf::Vector3 
-	msg.vel.linear.x *= scaleV;
-	msg.vel.linear.y *= scaleV;
-	msg.vel.linear.z *= scaleV;			// wird nicht benötigt
-	msg.pose.position.x *= scaleV;	// wird nicht benötigt
-	msg.pose.position.y *= scaleV;	// wird nicht benötigt
-	msg.pose.position.z *= scaleV;
+	msg.vel.linear.x *= scaleT;
+	msg.vel.linear.y *= scaleT;
+	msg.vel.linear.z *= scaleT;			// wird nicht benötigt
+	msg.pose.position.x *= scaleT;	// wird nicht benötigt
+	msg.pose.position.y *= scaleT;	// wird nicht benötigt
+	msg.pose.position.z *= scaleT;
 
 	// Scale: Phi, Theta
 	msg.pose.orientation.x *= scaleR;
@@ -239,13 +288,13 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	double z = (-1) * msg.pose.position.z;
 
 	double psi, phi, delta;
-	
+
 	if( MOV_ONLY == X_ONLY ){		
-		psi = - msg.pose.orientation.z;					
-		phi = M_PI/2 + msg.pose.orientation.y;
+		psi = msg.pose.orientation.z;					
+		phi = M_PI/2 - msg.pose.orientation.y;
 		delta = 0;
 	}else{		
-		psi = - msg.pose.orientation.z + M_PI/2;
+		psi = msg.pose.orientation.z + M_PI/2;
 		phi = M_PI/2 + msg.pose.orientation.x;
 		delta = - M_PI/2;
 	}
@@ -257,19 +306,19 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 		);
 */
 	// Testen, ob übergebene Pose + Geschwindigkeiten sicher sind
-  if( z < 0.5 ){
+	if( z < 0.5 ){
 		ROS_INFO("Unsichere Arbeitshoehe -> Bitte nach oben bewegen");
-		safe = false;
+		pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	if( abs(msg.pose.orientation.x) > 0.35 ){
 		ROS_INFO("Zu Steil! Rot(X)");
-		safe = false;
+		pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	if( abs(msg.pose.orientation.y) > 0.35 ){
 		ROS_INFO("Zu Steil! Rot(Y)");
-		safe = false;
+		pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	
@@ -277,7 +326,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	// -----------   Inverse Kinematik   -------------------------
 
 	//Hilfsgrößen
-	double x4 = k_Arm*( - d5*cos( phi ) ) - a1;
+	double x4 = k_Arm*( - d5*cos( phi ) ) + a1;
 	//ROS_INFO( "x4: %f", x4 );
 	double y4 = z - d1 - d5 * sin( phi );
 	//ROS_INFO( "y4: %f", y4 );
@@ -296,7 +345,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	for( int i = 0; i < 5; i++ ){
 		if( g[i] < joint_min_angles[i] || g[i] > joint_max_angles[i] || (g[i] != g[i]) ){
 			ROS_INFO("Pose nicht anfahrbar. Gelenk %i : %f", (i+1), g[i]);
-			safe = false;
+			pub_kin_measure.publish( kin_model_save_msg );
 			return;
 		}
 	}
@@ -312,9 +361,8 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	geometry_msgs::Twist msg_base;
 
 	// Transformation von N -> U
-	msg_base.linear.x =				 msg.vel.linear.x;
+	msg_base.linear.x =		msg.vel.linear.x;
 	msg_base.linear.y = (-1) * msg.vel.linear.y;
-	msg_base.linear.z = 0.0f;
 	//ROS_INFO( "BaseV: %f, %f", msg_base.linear.x, msg_base.linear.y );
 
 	msg_base.linear.z  = 0.0f;
@@ -326,7 +374,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	for( int i = 0; i <= 4; i++ ){
 		brics_actuator::JointValue jv;
 		jv.timeStamp = time_now;        
-		jv.joint_uri = joint_names[i];
+		jv.joint_uri = joint_names[i];	// z.B. arm_joint_1
 		jv.unit = "rad";
 		jv.value = g[i];
 		msg_joints.positions.push_back(jv);
@@ -338,6 +386,9 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	poison.qos          = 1.0f; // right?
 	msg_joints.poisonStamp = poison;
 
+	// Position anfahrbar
+	safe = true;
+
 	pub_base.publish(msg_base); 
 	pub_joint.publish( msg_joints );
 }
@@ -345,8 +396,8 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 
 
 void getConstants(ros::NodeHandle &nh){
-	nh.getParam("scaleV", scaleV);
-	ROS_INFO("SCALE V: %f", scaleV);
+	nh.getParam("scaleT", scaleT);
+	ROS_INFO("SCALE T: %f", scaleT);
 	nh.getParam("scaleR", scaleR);
 	ROS_INFO("SCALE R: %f", scaleR);
 	nh.getParam("a1", a1);
@@ -356,6 +407,8 @@ void getConstants(ros::NodeHandle &nh){
 	nh.getParam("d5", d5);
 	nh.getParam("k_Arm", k_Arm);
 	nh.getParam("k_Ell", k_Ell);
+	nh.getParam("logging", logging);
+	nh.getParam("filePathIST", filePathIST);
 }
 
 int main(int argc, char **argv)
@@ -367,15 +420,29 @@ int main(int argc, char **argv)
 	ROS_INFO("Start Interface");
 
 	getConstants(nh);
+
+	last = ros::Time::now();
 	
+	if( logging ){
+		logFileIST.open(filePathIST.c_str()); 
+		if(!logFileIST.is_open()){
+			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathIST.c_str());
+			return 0;
+		}
+		logFileIST << "SimT ,  VX  ,  VY  ,  VZ  , VPsi" << std::endl; 
+	}
+
+	// Berechnung der Geschwindigkeit im {S}-System
+	ros::Subscriber sub_imu_data = nh.subscribe("/imu/data", 10, callback_imu_raw);
+
 	// for testing
-	ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
-	//ros::Subscriber sub_kin = nh.subscribe("/kin_model", 10, callback_kin_model);
+	//ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
+	ros::Subscriber sub_kin = nh.subscribe("/kin_model", 10, callback_kin_model);
 
 	// Subscriber für Gelenkwinkel-änderungen
 	ros::Subscriber sub_joint = nh.subscribe("/joint_states", 10, callback_JointState);
 	// Subscriber für IMU
-	ros::Subscriber sub_imu   = nh.subscribe("/imu/data_raw", 10, callback_imu);
+	ros::Subscriber sub_imu   = nh.subscribe("/imu/rpy/filtered", 10, callback_imu);
 	// Subscriber für Odometriedaten der Basis
 	ros::Subscriber sub_odom	= nh.subscribe("/odom", 10, callback_odom);
   

@@ -3,6 +3,7 @@
 #include "geometry_msgs/Twist.h"
 
 #include "sensor_msgs/JointState.h"
+#include "sensor_msgs/Imu.h"							// Beschleunigungsmessung
 #include "geometry_msgs/Vector3Stamped.h"	// imu_Complementary_filter
 #include "quadrotor_control/kinematics.h"
 #include "nav_msgs/Odometry.h"
@@ -21,10 +22,14 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/frames.hpp>
 
+#include <tf/LinearMath/Vector3.h>
+//#include "geometry_msgs/Vector3.h"
+
 bool logging = false;
 #include <fstream>
 using namespace std;
-ofstream logFile;
+string filePathIST;
+ofstream logFileIST;
 double simTime = 0;
 
 #define X_ONLY true
@@ -70,9 +75,31 @@ quadrotor_control::kinematics kin_model_save_msg;
 
 bool safe = false;
 
-void writeToLogfile(){
+
+ros::Time last;
+tf::Vector3 V_S = tf::Vector3(0.0, 0.0, 0.0);
+// ----------------------------------------------------------------------
+
+/*
+	Wird aufgerufen, wenn IMU-Daten vorhanden sind (RAW)
+*/
+void callback_imu_raw( const sensor_msgs::Imu::Ptr& msg ){
+	// MAGIC
 	if( logging ){		
-		logFile << simTime << " , "
+		// TODO: Orientierung der IMU beschaffen
+		
+		ros::Time now = ros::Time::now();
+		double dt = (now - last).toSec(); 
+		last = now;
+		tf::Vector3 A_B = tf::Vector3(
+			msg->linear_acceleration.x, 
+			msg->linear_acceleration.y,
+			msg->linear_acceleration.z);
+
+		// hier noch Transformation von B->S
+		V_S += A_B * dt;		
+
+		logFileIST << simTime << " , "
 				<< kin_measure_msg.vel.linear.z << " , " 
 				<< kin_measure_msg.pose.orientation.x << " , " 
 				<< kin_measure_msg.pose.orientation.y << " , " 
@@ -81,9 +108,8 @@ void writeToLogfile(){
 				<< std::endl; 
 		simTime += 0.005;
 	}
-}
 
-// ----------------------------------------------------------------------
+}
 
 /*
 	Wird aufgerufen, wenn Odometriedaten (des Youbots) aktualisiert werden
@@ -104,15 +130,14 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	// Transformation von U -> N + Skalierung
 	kin_measure_msg.vel.linear.x = 				msg->twist.twist.linear.x / scaleT;
 	kin_measure_msg.vel.linear.y = (-1) * msg->twist.twist.linear.y / scaleT;
-	
+	/*
 	ROS_INFO("Measure: VX: % 06.4f, VY: % 06.4f", 
 		kin_measure_msg.vel.linear.x, 
 		kin_measure_msg.vel.linear.y);
-
+	*/
 	synch.base_ready = true;
 	if( synch.IMU_ready && synch.joint_ready ){
-		//pub_kin_measure.publish( kin_measure_msg );
-		writeToLogfile();
+		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -196,8 +221,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
 	synch.joint_ready = true;
 	if( synch.IMU_ready && synch.base_ready ){
-		//pub_kin_measure.publish( kin_measure_msg );
-		writeToLogfile();
+		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -213,8 +237,6 @@ void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 		return;
 	}
 
-
-
 	if( MOV_ONLY == X_ONLY ){		
 		kin_measure_msg.pose.orientation.y = - msg->vector.y / scaleR;
 		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
@@ -228,8 +250,7 @@ void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 
 	synch.IMU_ready = true;
 	if( synch.joint_ready && synch.base_ready ){
-		//pub_kin_measure.publish( kin_measure_msg );
-		writeToLogfile();
+		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
 		synch.base_ready 	= false;
@@ -287,17 +308,17 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	// Testen, ob übergebene Pose + Geschwindigkeiten sicher sind
 	if( z < 0.5 ){
 		ROS_INFO("Unsichere Arbeitshoehe -> Bitte nach oben bewegen");
-		//pub_kin_measure.publish( kin_model_save_msg );
+		pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	if( abs(msg.pose.orientation.x) > 0.35 ){
 		ROS_INFO("Zu Steil! Rot(X)");
-		//pub_kin_measure.publish( kin_model_save_msg );
+		pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	if( abs(msg.pose.orientation.y) > 0.35 ){
 		ROS_INFO("Zu Steil! Rot(Y)");
-		//pub_kin_measure.publish( kin_model_save_msg );
+		pub_kin_measure.publish( kin_model_save_msg );
 		return;
 	}
 	
@@ -324,7 +345,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	for( int i = 0; i < 5; i++ ){
 		if( g[i] < joint_min_angles[i] || g[i] > joint_max_angles[i] || (g[i] != g[i]) ){
 			ROS_INFO("Pose nicht anfahrbar. Gelenk %i : %f", (i+1), g[i]);
-			//pub_kin_measure.publish( kin_model_save_msg );
+			pub_kin_measure.publish( kin_model_save_msg );
 			return;
 		}
 	}
@@ -387,6 +408,7 @@ void getConstants(ros::NodeHandle &nh){
 	nh.getParam("k_Arm", k_Arm);
 	nh.getParam("k_Ell", k_Ell);
 	nh.getParam("logging", logging);
+	nh.getParam("filePathIST", filePathIST);
 }
 
 int main(int argc, char **argv)
@@ -398,20 +420,24 @@ int main(int argc, char **argv)
 	ROS_INFO("Start Interface");
 
 	getConstants(nh);
+
+	last = ros::Time::now();
 	
 	if( logging ){
-		char filePathName[] = "/home/youbot/Desktop/log.txt";
-		logFile.open(filePathName); 
-		if(!logFile.is_open()){
-			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathName);
+		logFileIST.open(filePathIST.c_str()); 
+		if(!logFileIST.is_open()){
+			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathIST.c_str());
 			return 0;
 		}
-		logFile << "SimT,  VZ  , PHI ,THETA, PSI , VPsi" << std::endl; 
+		logFileIST << "SimT ,  VX  ,  VY  ,  VZ  , VPsi" << std::endl; 
 	}
 
+	// Berechnung der Geschwindigkeit im {S}-System
+	ros::Subscriber sub_imu_data = nh.subscribe("/imu/data", 10, callback_imu_raw);
+
 	// for testing
-	ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
-	//ros::Subscriber sub_kin = nh.subscribe("/kin_model", 10, callback_kin_model);
+	//ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
+	ros::Subscriber sub_kin = nh.subscribe("/kin_model", 10, callback_kin_model);
 
 	// Subscriber für Gelenkwinkel-änderungen
 	ros::Subscriber sub_joint = nh.subscribe("/joint_states", 10, callback_JointState);
