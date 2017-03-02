@@ -21,7 +21,7 @@
 #include <kdl/jntarray.hpp>
 #include <kdl/frames.hpp>
 
-#define LOGGING
+//#define LOGGING
 #ifdef LOGGING
 	#include <fstream>
 	using namespace std;
