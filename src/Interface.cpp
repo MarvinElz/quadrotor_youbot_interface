@@ -36,7 +36,7 @@ double simTime = 0;
 #define Y_ONLY false
 
 // Hier Einstellung, welche Bewegungsrichtung simuliert werden soll
-#define MOV_ONLY X_ONLY
+#define MOV_ONLY Y_ONLY
 
 // Skalierung der Translationsgeschwindigkeit & Raum
 double scaleT = 0.15;
@@ -224,7 +224,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	kin_measure_msg.vel.angular.y = - Vels(4) /scaleR;
 	kin_measure_msg.vel.angular.z = - Vels(5);
 */
-
+/*
 	ROS_INFO( "Measure: Vz: % 06.4f, Phi: % 06.4f, Theta: % 06.4f, Psi: % 06.4f, VPsi: % 06.4f", 
 		kin_measure_msg.vel.linear.z,
 		kin_measure_msg.pose.orientation.x, 		 
@@ -232,7 +232,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 		kin_measure_msg.pose.orientation.z,
 		kin_measure_msg.vel.angular.z
 		);
-
+*/
 	synch.joint_ready = true;
 	if( synch.IMU_ready && synch.base_ready ){
 		safe_Replace();
