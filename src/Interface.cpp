@@ -81,7 +81,7 @@ tf::Vector3 V_S = tf::Vector3(0.0, 0.0, 0.0);
 // ----------------------------------------------------------------------
 
 void safe_Replace(){
-	kin_measure_msg.vel.linear.z = kin_model_save_msg.vel.linear.z;
+	//kin_measure_msg.vel.linear.z = kin_model_save_msg.vel.linear.z;
 
 	kin_measure_msg.vel.angular.x = kin_model_save_msg.vel.angular.x;
 	kin_measure_msg.vel.angular.y = kin_model_save_msg.vel.angular.y;
