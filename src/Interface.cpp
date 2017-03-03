@@ -256,10 +256,10 @@ void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 		kin_measure_msg.pose.orientation.y = - msg->vector.y / scaleR;
 		kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
 	}else{
-		if( msg->vector.x < 0 )
-			kin_measure_msg.pose.orientation.x =  - (msg->vector.x + M_PI) / scaleR;		// hier minus?
+		if( msg->vector.x < 0.0 )
+			kin_measure_msg.pose.orientation.x =  (msg->vector.x + M_PI) / scaleR;
 		else
-			kin_measure_msg.pose.orientation.x =  - (msg->vector.x - M_PI) / scaleR;		// hier minus?
+			kin_measure_msg.pose.orientation.x =  (msg->vector.x - M_PI) / scaleR;
 		kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
 	}
 
