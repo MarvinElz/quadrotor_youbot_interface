@@ -80,6 +80,21 @@ ros::Time last;
 tf::Vector3 V_S = tf::Vector3(0.0, 0.0, 0.0);
 // ----------------------------------------------------------------------
 
+void safe_Replace(){
+	kin_measure_msg.vel.linear.z = kin_model_save_msg.vel.linear.z;
+
+	kin_measure_msg.vel.angular.x = kin_model_save_msg.vel.angular.x;
+	kin_measure_msg.vel.angular.y = kin_model_save_msg.vel.angular.y;
+	kin_measure_msg.vel.angular.z = kin_model_save_msg.vel.angular.z;
+	
+	kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
+	kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
+	kin_measure_msg.pose.orientation.z = kin_model_save_msg.pose.orientation.z;
+
+}
+
+
+
 /*
 	Wird aufgerufen, wenn IMU-Daten vorhanden sind (RAW)
 */
@@ -137,6 +152,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	*/
 	synch.base_ready = true;
 	if( synch.IMU_ready && synch.joint_ready ){
+		safe_Replace();
 		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
@@ -149,8 +165,6 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	Errechnet: Vz, PSI, PHI, THETA, PSI'
 */
 void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
-
-	// hier Überprüfung, ob es sich um die JointState-Daten vom Manipulator handelt ???
 
 	if( safe == false ){
 		return;
@@ -221,6 +235,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
 	synch.joint_ready = true;
 	if( synch.IMU_ready && synch.base_ready ){
+		safe_Replace();
 		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
@@ -250,6 +265,7 @@ void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 
 	synch.IMU_ready = true;
 	if( synch.joint_ready && synch.base_ready ){
+		safe_Replace();
 		pub_kin_measure.publish( kin_measure_msg );
 		synch.joint_ready = false;
 		synch.IMU_ready 	= false;
@@ -363,6 +379,7 @@ void callback_kin_model( quadrotor_control::kinematics msg ){
 	// Transformation von N -> U
 	msg_base.linear.x =		msg.vel.linear.x;
 	msg_base.linear.y = (-1) * msg.vel.linear.y;
+
 	//ROS_INFO( "BaseV: %f, %f", msg_base.linear.x, msg_base.linear.y );
 
 	msg_base.linear.z  = 0.0f;
