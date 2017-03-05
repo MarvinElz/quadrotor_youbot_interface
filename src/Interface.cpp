@@ -40,7 +40,7 @@ double simTime = 0;
 
 // Skalierung der Translationsgeschwindigkeit & Raum
 double scaleT = 0.15;
-// Skalierung der Winkelgeschwindigkeit
+// Skalierung der Winkelgeschwindigkeit & Winkel
 double scaleR = 0.2;
 
 // Roboterarm-Parameter
@@ -99,7 +99,7 @@ void safe_Replace(){
 	Wird aufgerufen, wenn IMU-Daten vorhanden sind (RAW)
 */
 void callback_imu_raw( const sensor_msgs::Imu::Ptr& msg ){
-	// MAGIC
+
 	if( logging ){		
 		// TODO: Orientierung der IMU beschaffen
 		
@@ -110,6 +110,8 @@ void callback_imu_raw( const sensor_msgs::Imu::Ptr& msg ){
 			msg->linear_acceleration.x, 
 			msg->linear_acceleration.y,
 			msg->linear_acceleration.z);
+
+		// noch skalierung um scaleT;
 
 		// hier noch Transformation von B->S
 		V_S += A_B * dt;		
