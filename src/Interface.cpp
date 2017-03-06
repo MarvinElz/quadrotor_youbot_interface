@@ -161,11 +161,11 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 	double phi = ( Joints(1)+Joints(2)+Joints(3) );
 
 	if( MOV_ONLY == X_ONLY ){
-		kin_measure_msg.pose.orientation.z = psi;	
+		kin_measure_msg.pose.orientation.z = psi - M_PI*(k_Arm-1)/(2);	
 		//kin_measure_msg.pose.orientation.y = - phi / scaleR;
 		//kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
 	}else{
-		kin_measure_msg.pose.orientation.z = psi - M_PI/2;	
+		kin_measure_msg.pose.orientation.z = psi - M_PI*(k_Arm-1)/(2) - M_PI/2;	
 		//kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
 		//kin_measure_msg.pose.orientation.x = phi / scaleR;
 	}
