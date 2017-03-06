@@ -25,13 +25,6 @@
 #include <tf/LinearMath/Vector3.h>
 //#include "geometry_msgs/Vector3.h"
 
-bool logging = false;
-#include <fstream>
-using namespace std;
-string filePathIST;
-ofstream logFileIST;
-double simTime = 0;
-
 #define X_ONLY true
 #define Y_ONLY false
 
@@ -90,41 +83,6 @@ void safe_Replace(){
 	//kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
 	//kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
 	//kin_measure_msg.pose.orientation.z = kin_model_save_msg.pose.orientation.z;
-
-}
-
-
-
-/*
-	Wird aufgerufen, wenn IMU-Daten vorhanden sind (RAW)
-*/
-void callback_imu_raw( const sensor_msgs::Imu::Ptr& msg ){
-
-	if( logging ){		
-		// TODO: Orientierung der IMU beschaffen
-		
-		ros::Time now = ros::Time::now();
-		double dt = (now - last).toSec(); 
-		last = now;
-		tf::Vector3 A_B = tf::Vector3(
-			msg->linear_acceleration.x, 
-			msg->linear_acceleration.y,
-			msg->linear_acceleration.z);
-
-		// noch skalierung um scaleT;
-
-		// hier noch Transformation von B->S
-		V_S += A_B * dt;		
-
-		logFileIST << simTime << " , "
-				<< kin_measure_msg.vel.linear.z << " , " 
-				<< kin_measure_msg.pose.orientation.x << " , " 
-				<< kin_measure_msg.pose.orientation.y << " , " 
-				<< kin_measure_msg.pose.orientation.z << " , " 
-				<< kin_measure_msg.vel.angular.z 
-				<< std::endl; 
-		simTime += 0.005;
-	}
 
 }
 
@@ -428,8 +386,6 @@ void getConstants(ros::NodeHandle &nh){
 	nh.getParam("d5", d5);
 	nh.getParam("k_Arm", k_Arm);
 	nh.getParam("k_Ell", k_Ell);
-	nh.getParam("logging", logging);
-	nh.getParam("filePathIST", filePathIST);
 }
 
 int main(int argc, char **argv)
@@ -441,20 +397,6 @@ int main(int argc, char **argv)
 	ROS_INFO("Start Interface");
 
 	getConstants(nh);
-
-	last = ros::Time::now();
-	
-	if( logging ){
-		logFileIST.open(filePathIST.c_str()); 
-		if(!logFileIST.is_open()){
-			ROS_ERROR("Logfile: '%s' konnte nicht geöffnet werden. Beende.", filePathIST.c_str());
-			return 0;
-		}
-		logFileIST << "SimT ,  VX  ,  VY  ,  VZ  , VPsi" << std::endl; 
-	}
-
-	// Berechnung der Geschwindigkeit im {S}-System
-	ros::Subscriber sub_imu_data = nh.subscribe("/imu/data", 10, callback_imu_raw);
 
 	// for testing
 	//ros::Subscriber sub_kin = nh.subscribe("/kin_measure", 10, callback_kin_model);
