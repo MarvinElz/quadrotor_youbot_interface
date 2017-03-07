@@ -29,7 +29,7 @@
 #define Y_ONLY false
 
 // Hier Einstellung, welche Bewegungsrichtung simuliert werden soll
-#define MOV_ONLY Y_ONLY
+#define MOV_ONLY X_ONLY
 
 // Skalierung der Translationsgeschwindigkeit & Raum
 double scaleT = 0.15;
