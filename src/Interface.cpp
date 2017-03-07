@@ -80,7 +80,7 @@ void safe_Replace(){
 	//kin_measure_msg.vel.angular.y = kin_model_save_msg.vel.angular.y;
 	//kin_measure_msg.vel.angular.z = kin_model_save_msg.vel.angular.z;
 	
-	kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
+	//kin_measure_msg.pose.orientation.x = kin_model_save_msg.pose.orientation.x;
 	//kin_measure_msg.pose.orientation.y = kin_model_save_msg.pose.orientation.y;
 	//kin_measure_msg.pose.orientation.z = kin_model_save_msg.pose.orientation.z;
 
