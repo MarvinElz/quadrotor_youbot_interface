@@ -91,7 +91,7 @@ void safe_Replace(){
 */
 void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 	
-	if( safe == false ){		
+	if( safe == false || base_ready == true){		
 		return;
 	}
 
@@ -126,7 +126,7 @@ void callback_odom( const nav_msgs::Odometry::Ptr& msg){
 */
 void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 
-	if( safe == false ){
+	if( safe == false || joint_ready == true){
 		return;
 	}
 
@@ -208,7 +208,7 @@ void callback_JointState( const sensor_msgs::JointState::Ptr& msg){
 */
 void callback_imu( const geometry_msgs::Vector3Stamped::Ptr& msg){
 
-	if( safe == false ){
+	if( safe == false || IMU_ready == true){
 		return;
 	}
 
